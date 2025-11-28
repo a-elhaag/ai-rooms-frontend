@@ -1,7 +1,10 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import roomService from '@/services/roomService'
+import taskService from '@/services/taskService'
+import knowledgeService from '@/services/knowledgeService'
+import aiService from '@/services/aiService'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
 const route = useRoute()
@@ -9,7 +12,10 @@ const roomId = ref(route.params.id)
 
 const room = ref(null)
 const messages = ref([])
-// const tasks = ref([]) // Removed unused ref
+const tasks = ref([])
+const goals = ref([])
+const knowledgeBase = ref(null)
+const members = ref([])
 const loading = ref(true)
 const error = ref(null)
 const messageInput = ref('')
@@ -17,8 +23,41 @@ const sending = ref(false)
 const messagesContainer = ref(null)
 const activePanel = ref('chat') // chat, tasks, knowledge
 
+// AI Features
+const showAIMenu = ref(false)
+const aiLoading = ref(false)
+const showTaskDialog = ref(false)
+const newTaskTitle = ref('')
+const newTaskAssignee = ref('')
+
+// Mention autocomplete
+const showMentionMenu = ref(false)
+const mentionSearch = ref('')
+const mentionPosition = ref({ top: 0, left: 0 })
+
 // WebSocket connection
 let ws = null
+
+// Computed
+const todoTasks = computed(() => tasks.value.filter((t) => t.status === 'todo'))
+const inProgressTasks = computed(() => tasks.value.filter((t) => t.status === 'in_progress'))
+const completedTasks = computed(() => tasks.value.filter((t) => t.status === 'done'))
+
+// All assignable members including AI
+const assignableMembers = computed(() => {
+  const list = [{ id: 'ai', username: 'AI Assistant', isAI: true }]
+  members.value.forEach((m) => {
+    list.push({ id: m.user_id, username: m.username, isAI: false })
+  })
+  return list
+})
+
+// Filtered members for @mention autocomplete
+const filteredMentions = computed(() => {
+  if (!mentionSearch.value) return assignableMembers.value
+  const search = mentionSearch.value.toLowerCase()
+  return assignableMembers.value.filter((m) => m.username.toLowerCase().includes(search))
+})
 
 // Fetch room details
 const fetchRoom = async () => {
@@ -30,7 +69,19 @@ const fetchRoom = async () => {
     const messagesResponse = await roomService.getRoomMessages(roomId.value, { limit: 50 })
     messages.value = (messagesResponse.items || messagesResponse || []).reverse()
 
-    // TODO: Fetch room details and tasks when endpoints are available
+    // Fetch tasks
+    await fetchTasks()
+
+    // Fetch goals
+    await fetchGoals()
+
+    // Fetch knowledge base
+    await fetchKnowledgeBase()
+
+    // Fetch room members
+    await fetchMembers()
+
+    // Set room info
     room.value = {
       id: roomId.value,
       name: 'AI Room',
@@ -44,6 +95,143 @@ const fetchRoom = async () => {
   }
 }
 
+// Fetch room members
+const fetchMembers = async () => {
+  try {
+    const response = await roomService.getRoomMembers(roomId.value)
+    members.value = response || []
+  } catch (err) {
+    console.error('Failed to fetch members:', err)
+  }
+}
+
+// Fetch tasks
+const fetchTasks = async () => {
+  try {
+    const response = await taskService.getRoomTasks(roomId.value)
+    tasks.value = response || []
+  } catch (err) {
+    console.error('Failed to fetch tasks:', err)
+  }
+}
+
+// Fetch goals
+const fetchGoals = async () => {
+  try {
+    const response = await knowledgeService.getRoomGoals(roomId.value)
+    goals.value = response || []
+  } catch (err) {
+    console.error('Failed to fetch goals:', err)
+  }
+}
+
+// Fetch knowledge base
+const fetchKnowledgeBase = async () => {
+  try {
+    const response = await knowledgeService.getRoomKB(roomId.value)
+    knowledgeBase.value = response
+  } catch (err) {
+    console.error('Failed to fetch knowledge base:', err)
+  }
+}
+
+// Create task
+const createTask = async () => {
+  if (!newTaskTitle.value.trim()) return
+
+  try {
+    const taskData = {
+      title: newTaskTitle.value.trim(),
+    }
+    if (newTaskAssignee.value) {
+      taskData.assignee_id = newTaskAssignee.value
+    }
+    const task = await taskService.createTask(roomId.value, taskData)
+    tasks.value.unshift(task)
+    newTaskTitle.value = ''
+    newTaskAssignee.value = ''
+    showTaskDialog.value = false
+  } catch (err) {
+    console.error('Failed to create task:', err)
+  }
+}
+
+// Update task status
+const updateTaskStatus = async (task, newStatus) => {
+  try {
+    const updated = await taskService.updateTask(task.id, { status: newStatus })
+    const index = tasks.value.findIndex((t) => t.id === task.id)
+    if (index !== -1) {
+      tasks.value[index] = updated
+    }
+  } catch (err) {
+    console.error('Failed to update task:', err)
+  }
+}
+
+// Update task assignee
+const updateTaskAssignee = async (task, newAssigneeId) => {
+  try {
+    const updated = await taskService.updateTask(task.id, { assignee_id: newAssigneeId })
+    const index = tasks.value.findIndex((t) => t.id === task.id)
+    if (index !== -1) {
+      tasks.value[index] = updated
+    }
+  } catch (err) {
+    console.error('Failed to update task assignee:', err)
+  }
+}
+
+// Handle @mention input
+const handleMessageInput = (e) => {
+  const value = e.target.value
+  const cursorPos = e.target.selectionStart
+
+  // Check if we're typing a mention
+  const textBeforeCursor = value.substring(0, cursorPos)
+  const mentionMatch = textBeforeCursor.match(/@(\w*)$/)
+
+  if (mentionMatch) {
+    mentionSearch.value = mentionMatch[1]
+    showMentionMenu.value = true
+    // Position the menu (simplified)
+    mentionPosition.value = { bottom: 60, left: 20 }
+  } else {
+    showMentionMenu.value = false
+    mentionSearch.value = ''
+  }
+}
+
+// Insert mention
+const insertMention = (member) => {
+  const cursorPos = document.querySelector('.message-input').selectionStart
+  const textBeforeCursor = messageInput.value.substring(0, cursorPos)
+  const textAfterCursor = messageInput.value.substring(cursorPos)
+
+  // Find the @ position
+  const mentionStart = textBeforeCursor.lastIndexOf('@')
+  const newText =
+    textBeforeCursor.substring(0, mentionStart) + '@' + member.username + ' ' + textAfterCursor
+
+  messageInput.value = newText
+  showMentionMenu.value = false
+  mentionSearch.value = ''
+}
+
+// AI Actions
+const summarizeConversation = async () => {
+  try {
+    aiLoading.value = true
+    const result = await aiService.summarizeRoom(roomId.value, 20)
+    alert(`Summary:\n\n${result.summary}`)
+  } catch (err) {
+    console.error('Failed to summarize:', err)
+    alert('Failed to summarize conversation')
+  } finally {
+    aiLoading.value = false
+  }
+}
+
 // Send message
 const sendMessage = async () => {
   if (!messageInput.value.trim() || sending.value) return
@@ -53,14 +241,26 @@ const sendMessage = async () => {
 
   try {
     sending.value = true
-    const newMessage = await roomService.sendMessage(roomId.value, {
-      content,
-      type: 'text',
-    })
 
-    messages.value.push(newMessage)
-    await nextTick()
-    scrollToBottom()
+    // Send via WebSocket if connected
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({
+          type: 'message',
+          content: content,
+        }),
+      )
+      // Message will be added when broadcast is received
+    } else {
+      // Fallback to HTTP if WebSocket not connected
+      const newMessage = await roomService.sendMessage(roomId.value, {
+        content,
+        sender_type: 'user',
+      })
+      messages.value.push(newMessage)
+      await nextTick()
+      scrollToBottom()
+    }
   } catch (err) {
     console.error('Failed to send message:', err)
     messageInput.value = content // Restore message
@@ -72,19 +272,43 @@ const sendMessage = async () => {
 // Connect to WebSocket
 const connectWebSocket = () => {
   try {
+    const userId = localStorage.getItem('user_id')
+    if (!userId) {
+      console.warn('No user_id found, skipping WebSocket connection')
+      return
+    }
+
     const wsUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'
-    ws = new WebSocket(`${wsUrl}/ws/rooms/${roomId.value}`)
+    ws = new WebSocket(`${wsUrl}/ws/${roomId.value}?token=${userId}`)
 
     ws.onopen = () => {
-      console.log('WebSocket connected')
+      console.log('WebSocket connected to room:', roomId.value)
     }
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
+
         if (data.type === 'message') {
+          // Add new message to list
           messages.value.push(data.message)
           nextTick(() => scrollToBottom())
+        } else if (data.type === 'task_created' || data.type === 'task_updated') {
+          // Handle real-time task updates
+          if (data.task) {
+            const index = tasks.value.findIndex((t) => t.id === data.task.id)
+            if (index !== -1) {
+              tasks.value[index] = data.task
+            } else {
+              tasks.value.unshift(data.task)
+            }
+          }
+        } else if (data.type === 'system') {
+          // Handle system messages (user joined/left)
+          console.log('System message:', data.content)
+        } else if (data.type === 'typing') {
+          // Handle typing indicators
+          console.log(`${data.username} is typing...`)
         }
       } catch (err) {
         console.error('WebSocket message error:', err)
@@ -95,12 +319,14 @@ const connectWebSocket = () => {
       console.error('WebSocket error:', error)
     }
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected')
-      // Attempt to reconnect after 3 seconds
-      setTimeout(() => {
-        if (roomId.value) connectWebSocket()
-      }, 3000)
+    ws.onclose = (event) => {
+      console.log('WebSocket disconnected, code:', event.code)
+      // Attempt to reconnect after 3 seconds if not a policy violation
+      if (event.code !== 1008 && event.code !== 1003) {
+        setTimeout(() => {
+          if (roomId.value) connectWebSocket()
+        }, 3000)
+      }
     }
   } catch (err) {
     console.error('Failed to connect WebSocket:', err)
@@ -155,6 +381,11 @@ onUnmounted(() => {
   if (ws) {
     ws.close()
   }
+})
+
+// Watch for new messages and scroll
+watch(messages, () => {
+  nextTick(() => scrollToBottom())
 })
 </script>
 
@@ -216,12 +447,14 @@ onUnmounted(() => {
           >
             <div class="message-avatar">
               <AppIcon v-if="message.sender_type === 'ai'" name="bot" size="sm" />
-              <span v-else>{{ getSenderInitials(message.sender || 'U') }}</span>
+              <span v-else>{{ getSenderInitials(message.sender_name || 'U') }}</span>
             </div>
             <div class="message-content">
               <div class="message-header">
                 <span class="message-sender">
-                  {{ message.sender || (message.sender_type === 'ai' ? 'AI Assistant' : 'User') }}
+                  {{
+                    message.sender_name || (message.sender_type === 'ai' ? 'AI Assistant' : 'User')
+                  }}
                 </span>
                 <span class="message-time">{{ formatTime(message.created_at) }}</span>
               </div>
@@ -234,13 +467,33 @@ onUnmounted(() => {
 
         <!-- Message Input -->
         <div class="message-input-container">
+          <!-- Mention Autocomplete Menu -->
+          <div v-if="showMentionMenu" class="mention-menu">
+            <div class="mention-header">Mention someone</div>
+            <div
+              v-for="member in filteredMentions"
+              :key="member.id"
+              class="mention-item"
+              @click="insertMention(member)"
+            >
+              <span class="mention-avatar" :class="{ 'mention-ai': member.isAI }">
+                <AppIcon v-if="member.isAI" name="bot" size="xs" />
+                <span v-else>{{ getSenderInitials(member.username) }}</span>
+              </span>
+              <span class="mention-name">{{ member.username }}</span>
+              <span v-if="member.isAI" class="mention-badge">AI</span>
+            </div>
+            <div v-if="filteredMentions.length === 0" class="mention-empty">No matches found</div>
+          </div>
+
           <div class="message-input-wrapper glass-panel">
             <input
               v-model="messageInput"
               type="text"
               class="message-input"
-              placeholder="Ask AI anything or send a message..."
+              placeholder="Type @ to mention, / for commands..."
               @keyup.enter="sendMessage"
+              @input="handleMessageInput"
               :disabled="sending"
               maxlength="2000"
             />
@@ -252,6 +505,12 @@ onUnmounted(() => {
               <span v-if="sending" class="spinner spinner-sm"></span>
               <AppIcon v-else name="send" size="md" />
             </button>
+          </div>
+          <div class="input-hints">
+            <span class="hint">@mention</span>
+            <span class="hint">/help</span>
+            <span class="hint">/summarize</span>
+            <span class="hint">/tasks</span>
           </div>
         </div>
       </div>
@@ -286,17 +545,126 @@ onUnmounted(() => {
           <!-- Tasks Panel -->
           <div v-if="activePanel === 'tasks'" class="tasks-panel">
             <div class="panel-header">
-              <h3>Room Tasks</h3>
-              <button class="btn btn-ghost btn-sm">
+              <h3>Tasks</h3>
+              <button @click="showTaskDialog = true" class="btn btn-ghost btn-sm">
                 <AppIcon name="plus" size="xs" /> Add
               </button>
             </div>
 
-            <div class="empty-panel">
-              <div class="empty-icon">
-                <AppIcon name="check-circle" size="lg" />
+            <!-- Task Board Columns -->
+            <div class="task-board">
+              <!-- Todo Column -->
+              <div class="task-column">
+                <div class="column-header">
+                  <span class="column-title">To Do</span>
+                  <span class="column-count">{{ todoTasks.length }}</span>
+                </div>
+                <div class="task-list">
+                  <div v-for="task in todoTasks" :key="task.id" class="task-card">
+                    <div class="task-card-header">
+                      <span class="task-title">{{ task.title }}</span>
+                    </div>
+                    <div class="task-card-footer">
+                      <div class="task-assignee" v-if="task.assignee_name">
+                        <span class="assignee-avatar">
+                          {{
+                            task.assignee_name === 'AI'
+                              ? '🤖'
+                              : getSenderInitials(task.assignee_name)
+                          }}
+                        </span>
+                        <span class="assignee-name">{{ task.assignee_name }}</span>
+                      </div>
+                      <select
+                        class="task-status-select"
+                        :value="task.status"
+                        @change="updateTaskStatus(task, $event.target.value)"
+                      >
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div v-if="todoTasks.length === 0" class="empty-column">No tasks</div>
+                </div>
               </div>
-              <p>No tasks yet</p>
+
+              <!-- In Progress Column -->
+              <div class="task-column">
+                <div class="column-header">
+                  <span class="column-title">In Progress</span>
+                  <span class="column-count">{{ inProgressTasks.length }}</span>
+                </div>
+                <div class="task-list">
+                  <div v-for="task in inProgressTasks" :key="task.id" class="task-card in-progress">
+                    <div class="task-card-header">
+                      <span class="task-title">{{ task.title }}</span>
+                    </div>
+                    <div class="task-card-footer">
+                      <div class="task-assignee" v-if="task.assignee_name">
+                        <span class="assignee-avatar">
+                          {{
+                            task.assignee_name === 'AI'
+                              ? '🤖'
+                              : getSenderInitials(task.assignee_name)
+                          }}
+                        </span>
+                        <span class="assignee-name">{{ task.assignee_name }}</span>
+                      </div>
+                      <select
+                        class="task-status-select"
+                        :value="task.status"
+                        @change="updateTaskStatus(task, $event.target.value)"
+                      >
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div v-if="inProgressTasks.length === 0" class="empty-column">No tasks</div>
+                </div>
+              </div>
+
+              <!-- Done Column -->
+              <div class="task-column">
+                <div class="column-header">
+                  <span class="column-title">Done</span>
+                  <span class="column-count">{{ completedTasks.length }}</span>
+                </div>
+                <div class="task-list">
+                  <div v-for="task in completedTasks" :key="task.id" class="task-card done">
+                    <div class="task-card-header">
+                      <span class="task-title">{{ task.title }}</span>
+                    </div>
+                    <div class="task-card-footer">
+                      <div class="task-assignee" v-if="task.assignee_name">
+                        <span class="assignee-avatar">
+                          {{
+                            task.assignee_name === 'AI'
+                              ? '🤖'
+                              : getSenderInitials(task.assignee_name)
+                          }}
+                        </span>
+                        <span class="assignee-name">{{ task.assignee_name }}</span>
+                      </div>
+                      <select
+                        class="task-status-select"
+                        :value="task.status"
+                        @change="updateTaskStatus(task, $event.target.value)"
+                      >
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div v-if="completedTasks.length === 0" class="empty-column">
+                    No completed tasks
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -304,18 +672,69 @@ onUnmounted(() => {
           <div v-if="activePanel === 'knowledge'" class="knowledge-panel">
             <div class="panel-header">
               <h3>Knowledge Base</h3>
-              <button class="btn btn-ghost btn-sm">
-                <AppIcon name="plus" size="xs" /> Add
-              </button>
             </div>
 
-            <div class="empty-panel">
-              <div class="empty-icon">
-                 <AppIcon name="book" size="lg" />
+            <div class="panel-body">
+              <div v-if="!knowledgeBase || !knowledgeBase.content" class="empty-panel">
+                <div class="empty-icon">
+                  <AppIcon name="book" size="lg" />
+                </div>
+                <p>No knowledge base entries</p>
               </div>
-              <p>No knowledge items yet</p>
+              <div v-else class="kb-content">
+                <div class="kb-section">
+                  <h4>Context</h4>
+                  <p>{{ knowledgeBase.content }}</p>
+                </div>
+              </div>
+              <div v-if="goals.length > 0" class="goals-section">
+                <h4>Goals</h4>
+                <ul class="goals-list">
+                  <li v-for="goal in goals" :key="goal.id">
+                    {{ goal.description }}
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task Dialog -->
+    <div v-if="showTaskDialog" class="modal-overlay" @click.self="showTaskDialog = false">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Create New Task</h3>
+          <button @click="showTaskDialog = false" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Task Title</label>
+            <input
+              v-model="newTaskTitle"
+              type="text"
+              placeholder="What needs to be done?"
+              class="task-input"
+              @keyup.enter="createTask"
+              autofocus
+            />
+          </div>
+          <div class="form-group">
+            <label>Assign To</label>
+            <select v-model="newTaskAssignee" class="task-input">
+              <option value="">Unassigned</option>
+              <option v-for="member in assignableMembers" :key="member.id" :value="member.id">
+                {{ member.isAI ? '🤖 ' : '' }}{{ member.username }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showTaskDialog = false" class="btn btn-ghost">Cancel</button>
+          <button @click="createTask" :disabled="!newTaskTitle.trim()" class="btn btn-primary">
+            Create Task
+          </button>
         </div>
       </div>
     </div>
@@ -610,13 +1029,7 @@ onUnmounted(() => {
   border-color: rgba(51, 65, 85, 0.2);
 }
 
-/* Message Input */
-.message-input-container {
-  padding: var(--space-4) var(--space-6);
-  background: var(--surface-elevated);
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-}
+/* Message Input - using the enhanced version at the bottom */
 
 .message-input-wrapper {
   display: flex;
@@ -821,5 +1234,444 @@ onUnmounted(() => {
   .message-input-container {
     padding: var(--space-3) var(--space-4);
   }
+}
+
+/* Task list */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.task-item:hover {
+  background: var(--surface-elevated);
+  transform: translateX(2px);
+}
+
+.task-item.completed {
+  opacity: 0.6;
+}
+
+.task-item.completed .task-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.task-item input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.task-title {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.completed-section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.completed-section h4 {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+/* Knowledge Base */
+.kb-content {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.kb-section h4 {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.kb-section p {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.goals-section {
+  margin-top: var(--space-4);
+}
+
+.goals-section h4 {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.goals-list {
+  list-style: none;
+  padding: 0;
+}
+
+.goals-list li {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  font-size: 0.9rem;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 500px;
+  box-shadow: var(--shadow-xl);
+  animation: slideInUp 0.3s ease;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: var(--space-6);
+}
+
+.task-input {
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.task-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Task Board Styles */
+.task-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.task-column {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.column-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.column-count {
+  background: var(--primary-muted);
+  color: var(--primary);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.task-card {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  transition: all 0.2s ease;
+}
+
+.task-card:hover {
+  border-color: var(--primary-muted);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.task-card.in-progress {
+  border-left: 3px solid var(--warning);
+}
+
+.task-card.done {
+  opacity: 0.7;
+  border-left: 3px solid var(--success);
+}
+
+.task-card.done .task-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.task-card-header {
+  margin-bottom: var(--space-2);
+}
+
+.task-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.task-assignee {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.assignee-avatar {
+  width: 24px;
+  height: 24px;
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.assignee-name {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.task-status-select {
+  padding: 4px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.task-status-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.empty-column {
+  text-align: center;
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Mention Menu Styles */
+.mention-menu {
+  position: absolute;
+  bottom: 80px;
+  left: var(--space-6);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  min-width: 200px;
+  animation: slideInUp 0.2s ease;
+}
+
+.mention-header {
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mention-item:hover {
+  background: var(--surface);
+}
+
+.mention-avatar {
+  width: 28px;
+  height: 28px;
+  background: var(--primary-muted);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.mention-avatar.mention-ai {
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  color: white;
+}
+
+.mention-name {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.mention-badge {
+  background: var(--accent-muted);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.mention-empty {
+  padding: var(--space-3);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Input Hints */
+.input-hints {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  flex-wrap: wrap;
+}
+
+.hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hint:hover {
+  background: var(--primary-muted);
+  color: var(--primary);
+}
+
+/* Form Group */
+.form-group {
+  margin-bottom: var(--space-4);
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.message-input-container {
+  position: relative;
+  padding: var(--space-4) var(--space-6);
+  background: var(--surface-elevated);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 </style>

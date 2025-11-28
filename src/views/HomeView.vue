@@ -10,8 +10,12 @@ const loading = ref(true)
 const error = ref(null)
 const filter = ref('')
 const showCreateModal = ref(false)
+const showJoinModal = ref(false)
 const newRoomName = ref('')
+const joinCode = ref('')
 const newRoomLoading = ref(false)
+const joinRoomLoading = ref(false)
+const joinError = ref('')
 
 // Filtered rooms based on search
 const filteredRooms = computed(() => {
@@ -25,7 +29,7 @@ const fetchRooms = async () => {
   try {
     loading.value = true
     error.value = null
-    const response = await roomService.getRooms()
+    const response = await roomService.getUserRooms()
     rooms.value = response.items || response || []
   } catch (err) {
     console.error('Failed to fetch rooms:', err)
@@ -53,6 +57,38 @@ const createRoom = async () => {
     error.value = err.response?.data?.detail || 'Failed to create room'
   } finally {
     newRoomLoading.value = false
+  }
+}
+
+// Join a room with code
+const joinRoom = async () => {
+  if (!joinCode.value.trim() || joinRoomLoading.value) return
+
+  try {
+    joinRoomLoading.value = true
+    joinError.value = ''
+    const room = await roomService.joinRoom({
+      join_code: joinCode.value.trim().toUpperCase(),
+    })
+    rooms.value.unshift(room)
+    showJoinModal.value = false
+    joinCode.value = ''
+    router.push(`/room/${room.id}`)
+  } catch (err) {
+    console.error('Failed to join room:', err)
+    joinError.value = err.response?.data?.detail || 'Invalid room code'
+  } finally {
+    joinRoomLoading.value = false
+  }
+}
+
+// Copy room code to clipboard
+const copyRoomCode = async (code) => {
+  try {
+    await navigator.clipboard.writeText(code)
+    alert('Room code copied!')
+  } catch (err) {
+    console.error('Failed to copy:', err)
   }
 }
 
@@ -122,6 +158,11 @@ onMounted(() => {
             placeholder="Search rooms by name"
           />
         </div>
+
+        <button class="btn btn-secondary btn-join" @click="showJoinModal = true">
+          <AppIcon name="user" size="xs" />
+          <span>Join Room</span>
+        </button>
 
         <button class="btn btn-primary btn-new" @click="showCreateModal = true">
           <span class="btn-icon-circle">
@@ -229,6 +270,11 @@ onMounted(() => {
                 <p class="room-desc">
                   {{ room.description || 'No description yet' }}
                 </p>
+                <div class="room-code" @click.stop="copyRoomCode(room.join_code)">
+                  <span class="room-code-label">Code:</span>
+                  <span class="room-code-value">{{ room.join_code }}</span>
+                  <AppIcon name="clipboard" size="xs" />
+                </div>
               </div>
             </div>
 
@@ -300,6 +346,56 @@ onMounted(() => {
           >
             <span v-if="newRoomLoading" class="loader-inline"></span>
             <span v-else>Create room</span>
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Join Room Modal -->
+    <div v-if="showJoinModal" class="overlay" @click.self="showJoinModal = false">
+      <div class="modal-light">
+        <header class="modal-header-light">
+          <div>
+            <h2>Join a room</h2>
+            <p>Enter the room code to join an existing room.</p>
+          </div>
+          <button class="icon-button" @click="showJoinModal = false" aria-label="Close">
+            <AppIcon name="x" size="sm" />
+          </button>
+        </header>
+
+        <section class="modal-body-light">
+          <label class="field">
+            <span class="field-label">Room code</span>
+            <input
+              id="join-code"
+              v-model="joinCode"
+              type="text"
+              class="field-input"
+              placeholder="e.g. A1B2C3D4"
+              @keyup.enter="joinRoom"
+              :maxlength="10"
+              autofocus
+              style="text-transform: uppercase"
+            />
+            <div class="field-meta">
+              <span>Ask the room owner for the code.</span>
+            </div>
+          </label>
+          <div v-if="joinError" class="error-message">
+            {{ joinError }}
+          </div>
+        </section>
+
+        <footer class="modal-footer-light">
+          <button class="btn btn-secondary" @click="showJoinModal = false">Cancel</button>
+          <button
+            class="btn btn-primary"
+            @click="joinRoom"
+            :disabled="!joinCode.trim() || joinRoomLoading"
+          >
+            <span v-if="joinRoomLoading" class="loader-inline"></span>
+            <span v-else>Join room</span>
           </button>
         </footer>
       </div>
@@ -814,9 +910,59 @@ onMounted(() => {
   animation: spin 0.6s linear infinite;
 }
 
+.btn-join {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+}
+
+.room-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  background: #f3f4f6;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.room-code:hover {
+  background: #e5e7eb;
+}
+
+.room-code-label {
+  color: #6b7280;
+}
+
+.room-code-value {
+  font-weight: 600;
+  color: #2563eb;
+  font-family: monospace;
+}
+
+.error-message {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 0.85rem;
+}
+
 @media (max-width: 768px) {
   .top-bar {
     padding: 0.9rem 1.1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .top-bar-right {
+    flex-wrap: wrap;
   }
 
   .home-main {

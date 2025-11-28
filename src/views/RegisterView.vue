@@ -123,7 +123,7 @@ async function handleRegister() {
     const user = await register(userData)
     // Store user in localStorage for POC
     localStorage.setItem('user', JSON.stringify(user))
-    localStorage.setItem('userId', user.id)
+    localStorage.setItem('user_id', user.id) // Fixed: use user_id not userId
     router.push('/')
   } catch (err) {
     error.value = err.response?.data?.detail || 'Registration failed. Please try again.'

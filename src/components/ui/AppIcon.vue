@@ -49,6 +49,8 @@ import {
   X,
   ChevronRight,
   Brain,
+  Clipboard,
+  Box,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -108,6 +110,8 @@ const icons = {
   x: X,
   'chevron-right': ChevronRight,
   brain: Brain,
+  clipboard: Clipboard,
+  box: Box,
 }
 
 const iconComponent = computed(() => {

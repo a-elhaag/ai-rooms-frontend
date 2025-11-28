@@ -10,11 +10,11 @@ const apiClient = axios.create({
 // Request interceptor for API calls
 apiClient.interceptors.request.use(
   (config) => {
-    // TODO: Add auth token logic here when implemented
-    // const token = localStorage.getItem('token')
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`
-    // }
+    // Add X-User-Id header for POC mode authentication
+    const userId = localStorage.getItem('user_id')
+    if (userId) {
+      config.headers['X-User-Id'] = userId
+    }
     return config
   },
   (error) => {
