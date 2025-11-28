@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import roomService from '@/services/roomService'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
 const router = useRouter()
 const rooms = ref([])
@@ -100,11 +101,7 @@ onMounted(() => {
       <div class="top-bar-left">
         <div class="brand-mark">
           <div class="brand-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="4" width="8" height="8" rx="2" />
-              <rect x="13" y="4" width="8" height="5" rx="2" />
-              <rect x="13" y="11" width="8" height="9" rx="2" />
-            </svg>
+            <AppIcon name="monitor" size="md" />
           </div>
           <div>
             <div class="brand-title">AI Rooms</div>
@@ -116,10 +113,7 @@ onMounted(() => {
       <div class="top-bar-right">
         <div class="search-shell">
           <span class="search-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="6" />
-              <line x1="15.5" y1="15.5" x2="20" y2="20" />
-            </svg>
+            <AppIcon name="search" size="sm" />
           </span>
           <input
             v-model="filter"
@@ -131,10 +125,7 @@ onMounted(() => {
 
         <button class="btn btn-primary btn-new" @click="showCreateModal = true">
           <span class="btn-icon-circle">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <AppIcon name="plus" size="xs" />
           </span>
           <span>New Room</span>
         </button>
@@ -147,11 +138,7 @@ onMounted(() => {
         <div class="summary-card">
           <div class="summary-header">
             <span class="summary-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="14" rx="2" />
-                <path d="M7 9h10" />
-                <path d="M7 13h6" />
-              </svg>
+              <AppIcon name="room" size="md" />
             </span>
             <div>
               <div class="summary-label">Total Rooms</div>
@@ -163,11 +150,7 @@ onMounted(() => {
         <div class="summary-card ghost" v-if="!loading && rooms.length">
           <div class="summary-header">
             <span class="summary-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="4" width="7" height="14" rx="2" />
-                <rect x="10.5" y="4" width="10.5" height="6.5" rx="2" />
-                <rect x="10.5" y="11.5" width="10.5" height="6.5" rx="2" />
-              </svg>
+              <AppIcon name="clock" size="md" />
             </span>
             <div>
               <div class="summary-label">Recently Active</div>
@@ -186,39 +169,35 @@ onMounted(() => {
       <!-- Error -->
       <div v-else-if="error" class="state state-error">
         <div class="state-icon state-icon-error">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="7" x2="12" y2="13" />
-            <circle cx="12" cy="17" r="1" />
-          </svg>
+          <AppIcon name="alert" size="lg" />
         </div>
         <p>{{ error }}</p>
         <button class="btn btn-secondary" @click="fetchRooms">Retry</button>
       </div>
 
       <!-- Empty -->
-      <div v-else-if="rooms.length === 0" class="state state-empty">
+      <div v-else-if="filteredRooms.length === 0" class="state state-empty">
         <div class="illustration">
           <div class="illustration-orbit">
             <div class="illustration-core">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="6" y="5" width="12" height="6" rx="2" />
-                <rect x="4" y="11" width="16" height="6" rx="2" />
-              </svg>
+              <AppIcon name="box" size="lg" />
             </div>
           </div>
         </div>
-        <h2>No rooms yet</h2>
-        <p>Create your first room to start working with AI in a focused space.</p>
-        <button class="btn btn-primary" @click="showCreateModal = true">
-          <span class="btn-icon-circle">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </span>
-          <span>Create your first room</span>
-        </button>
+        <template v-if="rooms.length === 0">
+          <h2>No rooms yet</h2>
+          <p>Create your first room to start working with AI in a focused space.</p>
+          <button class="btn btn-primary" @click="showCreateModal = true">
+            <span class="btn-icon-circle">
+              <AppIcon name="plus" size="xs" />
+            </span>
+            <span>Create your first room</span>
+          </button>
+        </template>
+        <template v-else>
+          <h2>No matching rooms</h2>
+          <p>Try a different search term.</p>
+        </template>
       </div>
 
       <!-- Rooms grid -->
@@ -230,7 +209,7 @@ onMounted(() => {
 
         <div class="rooms-grid">
           <article
-            v-for="room in rooms"
+            v-for="room in filteredRooms"
             :key="room.id"
             class="room-card-light"
             @click="openRoom(room.id)"
@@ -243,11 +222,7 @@ onMounted(() => {
                 <div class="room-title-row">
                   <h3 class="room-title">{{ room.name }}</h3>
                   <span class="room-pill" v-if="room.has_ai">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <circle cx="6" cy="12" r="2.2" />
-                      <circle cx="12" cy="12" r="2.2" />
-                      <circle cx="18" cy="12" r="2.2" />
-                    </svg>
+                    <AppIcon name="bot" size="xs" />
                     <span>AI</span>
                   </span>
                 </div>
@@ -260,16 +235,11 @@ onMounted(() => {
             <div class="room-card-footer-light">
               <div class="room-stats">
                 <span class="room-stat">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" />
-                    <path d="M4 20a7 7 0 0 1 14 0" />
-                  </svg>
+                  <AppIcon name="user" size="xs" />
                   <span>{{ room.member_count || 1 }}</span>
                 </span>
                 <span class="room-stat">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M21 11.5a6.5 6.5 0 0 1-9.77 5.5L5 19l2-4.23A6.5 6.5 0 1 1 21 11.5Z" />
-                  </svg>
+                  <AppIcon name="room" size="xs" />
                   <span>{{ room.message_count || 0 }}</span>
                 </span>
               </div>
@@ -279,10 +249,7 @@ onMounted(() => {
                   Updated {{ formatDate(room.updated_at || room.created_at) }}
                 </span>
                 <span class="room-open-icon">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <polyline points="9 5 15 5 15 11" />
-                    <line x1="9" y1="15" x2="15" y2="9" />
-                  </svg>
+                  <AppIcon name="chevron-right" size="xs" />
                 </span>
               </div>
             </div>
@@ -300,10 +267,7 @@ onMounted(() => {
             <p>Name the space where you and AI will work together.</p>
           </div>
           <button class="icon-button" @click="showCreateModal = false" aria-label="Close">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <line x1="6" y1="6" x2="18" y2="18" />
-              <line x1="6" y1="18" x2="18" y2="6" />
-            </svg>
+            <AppIcon name="x" size="sm" />
           </button>
         </header>
 
@@ -377,14 +341,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 12px 30px rgba(37, 99, 235, 0.35);
-}
-
-.brand-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: #eff6ff;
-  stroke-width: 1.5;
+  color: white;
 }
 
 .brand-title {
@@ -413,12 +370,10 @@ onMounted(() => {
   border: 1px solid #e5e7eb;
 }
 
-.search-icon svg {
-  width: 16px;
-  height: 16px;
-  stroke: #9ca3af;
-  stroke-width: 1.8;
-  fill: none;
+.search-icon {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
 }
 
 .search-input {
@@ -448,14 +403,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.btn-icon-circle svg {
-  width: 14px;
-  height: 14px;
-  stroke: #eff6ff;
-  stroke-width: 1.8;
-  fill: none;
+  color: #eff6ff;
 }
 
 .home-main {
@@ -498,14 +446,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.summary-icon svg {
-  width: 18px;
-  height: 18px;
-  stroke: #2563eb;
-  fill: none;
-  stroke-width: 1.7;
+  color: #2563eb;
 }
 
 .summary-label {
@@ -561,14 +502,7 @@ onMounted(() => {
 
 .state-icon-error {
   background: #fef2f2;
-}
-
-.state-icon-error svg {
-  width: 30px;
-  height: 30px;
-  stroke: #dc2626;
-  fill: none;
-  stroke-width: 1.8;
+  color: #dc2626;
 }
 
 .loader-ring {
@@ -615,14 +549,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.illustration-core svg {
-  width: 26px;
-  height: 26px;
-  stroke: #eff6ff;
-  fill: none;
-  stroke-width: 1.6;
+  color: #eff6ff;
 }
 
 .rooms-section {
@@ -720,14 +647,6 @@ onMounted(() => {
   font-size: 0.75rem;
 }
 
-.room-pill svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: #1d4ed8;
-  stroke-width: 1.6;
-}
-
 .room-desc {
   margin-top: 0.1rem;
   font-size: 0.8rem;
@@ -758,14 +677,6 @@ onMounted(() => {
   color: #6b7280;
 }
 
-.room-stat svg {
-  width: 14px;
-  height: 14px;
-  stroke: #9ca3af;
-  fill: none;
-  stroke-width: 1.6;
-}
-
 .room-time-link {
   display: inline-flex;
   align-items: center;
@@ -774,16 +685,14 @@ onMounted(() => {
   color: #9ca3af;
 }
 
-.room-open-icon svg {
-  width: 14px;
-  height: 14px;
-  stroke: #9ca3af;
-  fill: none;
-  stroke-width: 1.6;
+.room-open-icon {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
   transition: transform 0.16s ease;
 }
 
-.room-card-light:hover .room-open-icon svg {
+.room-card-light:hover .room-open-icon {
   transform: translate(1px, -1px);
 }
 
@@ -837,14 +746,7 @@ onMounted(() => {
   transition:
     background 0.15s ease,
     transform 0.15s ease;
-}
-
-.icon-button svg {
-  width: 16px;
-  height: 16px;
-  stroke: #9ca3af;
-  fill: none;
-  stroke-width: 1.7;
+  color: #9ca3af;
 }
 
 .icon-button:hover {

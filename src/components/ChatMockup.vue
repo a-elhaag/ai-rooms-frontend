@@ -37,11 +37,6 @@
             <span class="message-time">{{ message.time }}</span>
           </div>
           <div class="message-text" v-html="formatMessage(message.text)"></div>
-          <div v-if="message.reactions" class="message-reactions">
-            <span v-for="(count, emoji) in message.reactions" :key="emoji" class="reaction">
-              {{ emoji }} {{ count }}
-            </span>
-          </div>
         </div>
       </div>
 
@@ -65,9 +60,6 @@
       <div class="input-tools">
         <button class="tool-btn" title="Attach file">
           <AppIcon name="paperclip" size="sm" />
-        </button>
-        <button class="tool-btn" title="Add emoji">
-          <AppIcon name="smile" size="sm" />
         </button>
         <button class="tool-btn" title="Voice message">
           <AppIcon name="mic" size="sm" />
@@ -93,7 +85,7 @@
 import { ref, nextTick, onMounted } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
-const props = defineProps({
+defineProps({
   roomName: {
     type: String,
     default: 'AI Room',
@@ -108,10 +100,9 @@ const messages = ref([
   {
     id: 1,
     sender: 'AI Assistant',
-    text: "Hello! 👋 Welcome to the AI Room. I'm here to help you with your tasks and answer any questions you might have.",
+    text: "Hello! Welcome to the AI Room. I'm here to help you with your tasks and answer any questions you might have.",
     time: '10:30 AM',
     isAi: true,
-    reactions: { '👍': 2 },
   },
   {
     id: 2,
@@ -137,19 +128,18 @@ const messages = ref([
   {
     id: 5,
     sender: 'AI Assistant',
-    text: "Absolutely! Just upload your files using the 📎 button below, and I'll analyze them for you. I can provide:\n\n✅ Code reviews and suggestions\n✅ Documentation summaries\n✅ Task extraction and prioritization\n✅ Quality improvement recommendations",
+    text: "Absolutely! Just upload your files using the paperclip button below, and I'll analyze them for you. I can provide:\n\n• Code reviews and suggestions\n• Documentation summaries\n• Task extraction and prioritization\n• Quality improvement recommendations",
     time: '10:34 AM',
     isAi: true,
-    reactions: { '🚀': 1, '💡': 3 },
   },
 ])
 
 const aiResponses = [
   "That's a great question! Let me think about it...\n\nBased on my analysis, I would recommend breaking this down into smaller, manageable tasks. Would you like me to help create a task list?",
   "I've analyzed your request and here are my thoughts:\n\n• First, we should review the current status\n• Then, identify any blockers\n• Finally, create an action plan\n\nWould you like to proceed with this approach?",
-  "Interesting point! 🤔 Here's what I found:\n\n**Key Insights:**\n- The data suggests a positive trend\n- There are a few areas for improvement\n- I recommend focusing on the core objectives first",
-  "I'm on it! 🚀 Give me a moment to process this...\n\nDone! I've analyzed the information and created a summary for you. The main takeaways are:\n1. Strong foundation in place\n2. Room for optimization\n3. Clear path forward",
-  "Great idea! Let me help you implement that.\n\n**Next Steps:**\n✅ Define clear objectives\n✅ Set up the workflow\n✅ Monitor progress\n\nI'll be here to assist throughout the process!",
+  "Interesting point! Here's what I found:\n\n**Key Insights:**\n- The data suggests a positive trend\n- There are a few areas for improvement\n- I recommend focusing on the core objectives first",
+  "I'm on it! Give me a moment to process this...\n\nDone! I've analyzed the information and created a summary for you. The main takeaways are:\n1. Strong foundation in place\n2. Room for optimization\n3. Clear path forward",
+  "Great idea! Let me help you implement that.\n\n**Next Steps:**\n• Define clear objectives\n• Set up the workflow\n• Monitor progress\n\nI'll be here to assist throughout the process!",
 ]
 
 function formatMessage(text) {
@@ -158,7 +148,6 @@ function formatMessage(text) {
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
     .replace(/• /g, '&bull; ')
-    .replace(/✅/g, '<span class="check">✅</span>')
 }
 
 async function sendMessage() {
@@ -401,25 +390,6 @@ onMounted(() => {
 
 .message-text :deep(strong) {
   font-weight: 600;
-}
-
-.message-reactions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.reaction {
-  background: var(--surface);
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.reaction:hover {
-  background: var(--surface-hover);
 }
 
 .typing-indicator .message-content {

@@ -129,11 +129,11 @@ const formatDate = (dateString) => {
 
             <div class="task-meta">
               <span class="task-room">
-                <AppIcon name="room" size="sm" />
+                <AppIcon name="room" size="xs" />
                 {{ task.room }}
               </span>
               <span class="task-due" :class="{ overdue: formatDate(task.due) === 'Overdue' }">
-                <AppIcon name="clock" size="sm" />
+                <AppIcon name="clock" size="xs" />
                 {{ formatDate(task.due) }}
               </span>
             </div>
@@ -201,12 +201,12 @@ const formatDate = (dateString) => {
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
-  box-shadow: 0 4px 14px var(--primary-glow);
+  box-shadow: 0 4px 14px rgba(0, 127, 255, 0.2);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px var(--primary-glow);
+  box-shadow: 0 6px 20px rgba(0, 127, 255, 0.3);
 }
 
 .btn-icon-circle {
@@ -399,17 +399,17 @@ const formatDate = (dateString) => {
 }
 
 .priority-high {
-  background: var(--error-muted);
-  color: var(--error);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .priority-medium {
-  background: var(--warning-muted);
+  background: var(--warning-soft);
   color: var(--warning);
 }
 
 .priority-low {
-  background: var(--success-muted);
+  background: var(--success-soft);
   color: var(--success);
 }
 
@@ -429,7 +429,7 @@ const formatDate = (dateString) => {
 }
 
 .task-due.overdue {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .task-actions {
@@ -477,6 +477,10 @@ const formatDate = (dateString) => {
 
   .view-content {
     padding: 0.75rem 1.25rem 1.5rem;
+  }
+
+  .task-actions {
+    opacity: 1;
   }
 }
 </style>

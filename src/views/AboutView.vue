@@ -3,11 +3,7 @@
     <div class="about-container">
       <div class="about-header">
         <div class="about-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4" />
-            <path d="M12 8h.01" />
-          </svg>
+          <AppIcon name="info" size="xl" />
         </div>
         <h1>About AI Rooms</h1>
         <p class="about-tagline">Lightweight spaces for AI collaboration</p>
@@ -16,11 +12,7 @@
       <div class="about-content">
         <div class="about-card">
           <div class="card-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <rect x="3" y="4" width="18" height="14" rx="2" />
-              <path d="M7 9h10" />
-              <path d="M7 13h6" />
-            </svg>
+            <AppIcon name="room" size="lg" />
           </div>
           <h3>Smart Rooms</h3>
           <p>
@@ -30,12 +22,7 @@
 
         <div class="about-card">
           <div class="card-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
-              />
-            </svg>
+            <AppIcon name="sparkle" size="lg" />
           </div>
           <h3>AI-Powered</h3>
           <p>Leverage advanced AI capabilities to enhance your productivity and creativity.</p>
@@ -43,11 +30,7 @@
 
         <div class="about-card">
           <div class="card-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
+            <AppIcon name="user" size="lg" />
           </div>
           <h3>Collaboration</h3>
           <p>
@@ -57,12 +40,16 @@
       </div>
 
       <div class="about-footer">
-        <p>Built with ❤️ for the future of work</p>
+        <p>Built for the future of work</p>
         <div class="version-badge">v1.0.0</div>
       </div>
     </div>
   </div>
 </template>
+
+<script setup>
+import AppIcon from '@/components/ui/AppIcon.vue'
+</script>
 
 <style scoped>
 .about-view {
@@ -100,13 +87,14 @@
   width: 80px;
   height: 80px;
   background: linear-gradient(135deg, var(--primary), var(--primary-soft));
-  border-radius: var(--radius-2xl);
+  border-radius: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto var(--space-5);
   box-shadow: 0 16px 40px rgba(37, 99, 235, 0.3);
   animation: float 3s ease-in-out infinite;
+  color: white;
 }
 
 @keyframes float {
@@ -117,12 +105,6 @@
   50% {
     transform: translateY(-10px);
   }
-}
-
-.about-icon svg {
-  width: 40px;
-  height: 40px;
-  color: white;
 }
 
 .about-header h1 {
@@ -174,26 +156,17 @@
   width: 56px;
   height: 56px;
   background: var(--primary-muted);
-  border-radius: var(--radius-xl);
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto var(--space-4);
   transition: all 0.3s ease;
+  color: var(--primary);
 }
 
 .about-card:hover .card-icon {
   background: linear-gradient(135deg, var(--primary), var(--primary-soft));
-}
-
-.card-icon svg {
-  width: 28px;
-  height: 28px;
-  color: var(--primary);
-  transition: color 0.3s ease;
-}
-
-.about-card:hover .card-icon svg {
   color: white;
 }
 

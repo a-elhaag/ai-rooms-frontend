@@ -1,78 +1,78 @@
-// AI Rooms - Creative Theme System
-// This theme creates a modern "AI Control Room" aesthetic with bold colors and depth
+// AI Rooms - White, Black, and Azure Blue Theme
+// This theme creates a modern, clean aesthetic
 
 export const theme = {
-  // Primary brand colors - calm modern blue
-  primary: '#2563EB', // Blue 600
-  primarySoft: '#3B82F6', // Blue 500
-  primaryStrong: '#1D4ED8', // Blue 700
-  primaryMuted: 'rgba(37, 99, 235, 0.12)', // Transparent blue
+  // Primary brand colors - Azure Blue
+  primary: '#007FFF', // Azure Blue
+  primarySoft: '#3399FF', // Lighter Azure
+  primaryStrong: '#0066CC', // Darker Azure
+  primaryMuted: 'rgba(0, 127, 255, 0.12)', // Transparent Azure
 
-  // Accent colors - lighter blue/cyan for subtle highlights
-  accent: '#0EA5E9', // Sky 500
-  accentSoft: '#38BDF8', // Sky 400
-  accentStrong: '#0284C7', // Sky 600
-  accentMuted: 'rgba(14, 165, 233, 0.12)', // Transparent sky
+  // Accent colors - Using Azure variations
+  accent: '#007FFF',
+  accentSoft: '#3399FF',
+  accentStrong: '#0066CC',
+  accentMuted: 'rgba(0, 127, 255, 0.12)',
 
-  // Background colors - Dark with depth
-  background: '#020617', // Deep navy
-  backgroundElevated: '#020617',
-  backgroundSoft: '#020617',
-  backgroundAccent: 'rgba(15, 23, 42, 1)',
+  // Background colors - White
+  background: '#FFFFFF',
+  backgroundElevated: '#F8FAFC', // Very light gray for elevation
+  backgroundSoft: '#F1F5F9', // Light gray
+  backgroundAccent: '#E0F2FE', // Light blue tint
 
   // Surface colors for cards and panels
-  surface: '#020617',
-  surfaceElevated: '#020617',
-  surfaceHover: '#020617',
+  surface: '#FFFFFF',
+  surfaceElevated: '#FFFFFF',
+  surfaceHover: '#F8FAFC',
 
   // Border colors
-  border: 'rgba(148, 163, 184, 0.12)',
-  borderSubtle: 'rgba(148, 163, 184, 0.06)',
-  borderStrong: 'rgba(148, 163, 184, 0.22)',
-  borderAccent: '#2563EB',
+  border: '#E2E8F0', // Light gray border
+  borderSubtle: '#F1F5F9',
+  borderStrong: '#CBD5E1',
+  borderAccent: '#007FFF',
 
-  // Text colors
-  textPrimary: '#E5F0FF', // Soft white-blue
-  textSecondary: '#A5B8D8',
-  textMuted: '#64748B',
-  textOnAccent: '#FFFFFF', // White on colored backgrounds
+  // Text colors - Black
+  textPrimary: '#000000',
+  textSecondary: '#334155', // Slate 700
+  textMuted: '#64748B', // Slate 500
+  textOnAccent: '#FFFFFF',
 
   // Semantic colors
   success: '#10B981', // Green
-  successSoft: '#34D399',
+  successSoft: '#D1FAE5',
   warning: '#F59E0B',
-  warningSoft: '#FBBF24',
+  warningSoft: '#FEF3C7',
   danger: '#EF4444',
-  dangerSoft: '#F87171',
-  info: '#3B82F6',
-  infoSoft: '#60A5FA',
+  dangerSoft: '#FEE2E2',
+  info: '#007FFF',
+  infoSoft: '#E0F2FE',
 
   // AI-specific colors
-  aiMessage: '#2563EB',
-  aiMessageBg: 'rgba(37, 99, 235, 0.12)',
-  humanMessage: '#0EA5E9',
-  humanMessageBg: 'rgba(14, 165, 233, 0.12)',
-  systemMessage: '#64748B', // Slate for system
-  systemMessageBg: 'rgba(100, 116, 139, 0.1)',
+  aiMessage: '#007FFF',
+  aiMessageBg: '#F0F9FF',
+  humanMessage: '#000000',
+  humanMessageBg: '#F1F5F9',
+  systemMessage: '#64748B',
+  systemMessageBg: '#F8FAFC',
 
   // Status indicators
-  statusActive: '#10B981', // Green
-  statusIdle: '#F59E0B', // Amber
-  statusOffline: '#64748B', // Gray
-  statusThinking: '#8B5CF6', // Purple
+  statusActive: '#10B981',
+  statusIdle: '#F59E0B',
+  statusOffline: '#64748B',
+  statusThinking: '#8B5CF6',
 
   // Shadows and effects
   shadowSm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
   shadowMd: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
   shadowLg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
   shadowXl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-  shadowGlow: '0 0 20px rgba(139, 92, 246, 0.3)',
-  shadowGlowAccent: '0 0 20px rgba(6, 182, 212, 0.3)',
+  shadowGlow: '0 0 15px rgba(0, 127, 255, 0.2)',
+  shadowGlowAccent: '0 0 15px rgba(0, 127, 255, 0.2)',
 
-  // Glassmorphism
-  glassBackground: 'rgba(30, 41, 59, 0.7)',
+  // Glassmorphism (adjusted for light theme)
+  glassBackground: 'rgba(255, 255, 255, 0.7)',
   glassBlur: '12px',
-  glassBorder: 'rgba(255, 255, 255, 0.1)',
+  glassBorder: 'rgba(255, 255, 255, 0.5)',
 
   // Transitions
   transitionFast: '150ms ease',
@@ -80,23 +80,23 @@ export const theme = {
   transitionSlow: '400ms ease',
 
   // Border radius
-  radiusSm: '0.375rem', // 6px
-  radiusMd: '0.5rem', // 8px
-  radiusLg: '0.75rem', // 12px
-  radiusXl: '1rem', // 16px
+  radiusSm: '0.375rem',
+  radiusMd: '0.5rem',
+  radiusLg: '0.75rem',
+  radiusXl: '1rem',
   radiusFull: '9999px',
 
-  // Spacing scale (in rem)
-  space1: '0.25rem', // 4px
-  space2: '0.5rem', // 8px
-  space3: '0.75rem', // 12px
-  space4: '1rem', // 16px
-  space5: '1.25rem', // 20px
-  space6: '1.5rem', // 24px
-  space8: '2rem', // 32px
-  space10: '2.5rem', // 40px
-  space12: '3rem', // 48px
-  space16: '4rem', // 64px
+  // Spacing scale
+  space1: '0.25rem',
+  space2: '0.5rem',
+  space3: '0.75rem',
+  space4: '1rem',
+  space5: '1.25rem',
+  space6: '1.5rem',
+  space8: '2rem',
+  space10: '2.5rem',
+  space12: '3rem',
+  space16: '4rem',
 }
 
 // Function to apply theme to CSS variables
@@ -104,7 +104,6 @@ export function applyTheme(themeObj = theme) {
   const root = document.documentElement
 
   Object.entries(themeObj).forEach(([key, value]) => {
-    // Convert camelCase to kebab-case for CSS variables
     const cssVarName = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`
     root.style.setProperty(cssVarName, value)
   })

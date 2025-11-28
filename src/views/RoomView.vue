@@ -2,13 +2,14 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import roomService from '@/services/roomService'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
 const route = useRoute()
 const roomId = ref(route.params.id)
 
 const room = ref(null)
 const messages = ref([])
-const tasks = ref([])
+// const tasks = ref([]) // Removed unused ref
 const loading = ref(true)
 const error = ref(null)
 const messageInput = ref('')
@@ -192,7 +193,7 @@ onUnmounted(() => {
 
         <!-- Error state -->
         <div v-else-if="error" class="error-state">
-          <span class="error-icon">⚠️</span>
+          <AppIcon name="alert" size="lg" />
           <p>{{ error }}</p>
           <button class="btn btn-secondary" @click="fetchRoom">Retry</button>
         </div>
@@ -200,7 +201,9 @@ onUnmounted(() => {
         <!-- Messages -->
         <div v-else class="messages-container" ref="messagesContainer">
           <div v-if="messages.length === 0" class="empty-messages">
-            <div class="empty-icon"></div>
+            <div class="empty-icon">
+              <AppIcon name="room" size="xl" />
+            </div>
             <h3>Start the conversation</h3>
             <p>Send a message or ask the AI for help</p>
           </div>
@@ -212,7 +215,8 @@ onUnmounted(() => {
             :class="getMessageClass(message)"
           >
             <div class="message-avatar">
-              {{ getSenderInitials(message.sender || 'AI') }}
+              <AppIcon v-if="message.sender_type === 'ai'" name="bot" size="sm" />
+              <span v-else>{{ getSenderInitials(message.sender || 'U') }}</span>
             </div>
             <div class="message-content">
               <div class="message-header">
@@ -246,19 +250,7 @@ onUnmounted(() => {
               :disabled="!messageInput.trim() || sending"
             >
               <span v-if="sending" class="spinner spinner-sm"></span>
-              <svg
-                v-else
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
+              <AppIcon v-else name="send" size="md" />
             </button>
           </div>
         </div>
@@ -295,11 +287,15 @@ onUnmounted(() => {
           <div v-if="activePanel === 'tasks'" class="tasks-panel">
             <div class="panel-header">
               <h3>Room Tasks</h3>
-              <button class="btn btn-ghost btn-sm">+ Add</button>
+              <button class="btn btn-ghost btn-sm">
+                <AppIcon name="plus" size="xs" /> Add
+              </button>
             </div>
 
             <div class="empty-panel">
-              <div class="empty-icon"></div>
+              <div class="empty-icon">
+                <AppIcon name="check-circle" size="lg" />
+              </div>
               <p>No tasks yet</p>
             </div>
           </div>
@@ -308,11 +304,15 @@ onUnmounted(() => {
           <div v-if="activePanel === 'knowledge'" class="knowledge-panel">
             <div class="panel-header">
               <h3>Knowledge Base</h3>
-              <button class="btn btn-ghost btn-sm">+ Add</button>
+              <button class="btn btn-ghost btn-sm">
+                <AppIcon name="plus" size="xs" /> Add
+              </button>
             </div>
 
             <div class="empty-panel">
-              <div class="empty-icon"></div>
+              <div class="empty-icon">
+                 <AppIcon name="book" size="lg" />
+              </div>
               <p>No knowledge items yet</p>
             </div>
           </div>
@@ -364,7 +364,7 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   background: linear-gradient(135deg, var(--primary), var(--primary-soft));
-  border-radius: var(--radius-xl);
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -387,6 +387,14 @@ onUnmounted(() => {
   gap: var(--space-2);
 }
 
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
 .status-text {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -395,6 +403,17 @@ onUnmounted(() => {
 .room-header-actions {
   display: flex;
   gap: var(--space-2);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--surface);
+  color: var(--text-primary);
 }
 
 /* Room Content */
@@ -440,6 +459,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--primary);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -501,7 +521,7 @@ onUnmounted(() => {
 .message-avatar {
   width: 38px;
   height: 38px;
-  border-radius: var(--radius-full);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -581,13 +601,13 @@ onUnmounted(() => {
 }
 
 .message-ai .message-body {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(139, 92, 246, 0.02));
-  border-color: rgba(139, 92, 246, 0.2);
+  background: linear-gradient(135deg, rgba(0, 127, 255, 0.05), rgba(0, 127, 255, 0.02));
+  border-color: rgba(0, 127, 255, 0.2);
 }
 
 .message-human .message-body {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), rgba(37, 99, 235, 0.02));
-  border-color: rgba(37, 99, 235, 0.2);
+  background: linear-gradient(135deg, rgba(51, 65, 85, 0.05), rgba(51, 65, 85, 0.02));
+  border-color: rgba(51, 65, 85, 0.2);
 }
 
 /* Message Input */
@@ -661,14 +681,6 @@ onUnmounted(() => {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
-}
-
-.send-btn svg {
-  transition: transform 0.2s ease;
-}
-
-.send-btn:hover:not(:disabled) svg {
-  transform: translateX(2px);
 }
 
 /* Side Panel */
@@ -761,6 +773,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--text-muted);
 }
 
 .empty-panel p {
@@ -786,11 +799,7 @@ onUnmounted(() => {
 }
 
 .error-state {
-  color: var(--error);
-}
-
-.error-icon {
-  font-size: 2rem;
+  color: var(--danger);
 }
 
 /* Responsive */
