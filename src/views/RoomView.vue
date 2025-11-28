@@ -199,11 +199,16 @@ const createTask = async () => {
   if (!newTaskTitle.value.trim()) return
 
   try {
+    let detectedAssignee = newTaskAssignee.value
+    if (!detectedAssignee) {
+      detectedAssignee = detectAssigneeForText(newTaskTitle.value.trim())
+    }
+
     const taskData = {
       title: newTaskTitle.value.trim(),
     }
-    if (newTaskAssignee.value) {
-      taskData.assignee_id = newTaskAssignee.value
+    if (detectedAssignee) {
+      taskData.assignee_id = detectedAssignee
     }
     const task = await taskService.createTask(roomId.value, taskData)
     tasks.value.unshift(task)
@@ -269,6 +274,15 @@ const cancelTaskEdit = () => {
 
 const resolveTask = (task) => {
   updateTaskStatus(task, 'done')
+}
+
+const detectAssigneeForText = (text) => {
+  if (!text) return null
+  const lowered = text.toLowerCase()
+  const found = assignableMembers.value.find((member) =>
+    lowered.includes(member.username.toLowerCase()),
+  )
+  return found ? found.id : null
 }
 
 const handleTaskDragStart = (task) => {
@@ -557,7 +571,8 @@ const sendMessage = async () => {
   if (!messageInput.value.trim() || sending.value) return
 
   const content = messageInput.value.trim()
-  const wantsAIReply = messageHasAIMention(content)
+  const wantsAIReply =
+    messageHasAIMention(content) || (!!replyingTo.value && replyingTo.value.sender_type === 'ai')
   const replyPayload = replyingTo.value ? { reply_to: replyingTo.value.id } : {}
   const aiContext = replyingTo.value
     ? `${content}\n\n(Replying to "${replyingTo.value.content}")`
@@ -817,13 +832,15 @@ watch(filteredCommands, () => {
                 </span>
                 <span class="message-time">{{ formatTime(message.created_at) }}</span>
               </div>
-              <div v-if="getReplyTarget(message)" class="reply-preview">
-                <span class="reply-label">@{{ getReplyTarget(message)?.sender_name || 'Message' }}</span>
-                <div class="reply-snippet">
-                  {{ getReplyTarget(message)?.content || 'Original message' }}
-                </div>
-              </div>
               <div class="message-body">
+                <div v-if="getReplyTarget(message)" class="reply-preview">
+                  <span class="reply-label">
+                    @{{ getReplyTarget(message)?.sender_name || 'Message' }}
+                  </span>
+                  <div class="reply-snippet">
+                    {{ getReplyTarget(message)?.content || 'Original message' }}
+                  </div>
+                </div>
                 {{ message.content }}
               </div>
               <div class="message-actions">
@@ -1612,12 +1629,13 @@ watch(filteredCommands, () => {
 
 .reply-preview {
   border-left: 3px solid var(--primary);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3);
   margin-bottom: var(--space-2);
   color: var(--text-muted);
   font-size: 0.85rem;
   background: var(--surface);
   border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .reply-label {
@@ -2278,6 +2296,16 @@ watch(filteredCommands, () => {
   padding: var(--space-4);
   border: 1px dashed var(--border);
   border-radius: var(--radius-md);
+}
+
+.task-column:nth-child(1) .column-title {
+  color: var(--primary);
+}
+.task-column:nth-child(2) .column-title {
+  color: var(--warning);
+}
+.task-column:nth-child(3) .column-title {
+  color: var(--success);
 }
 
 .empty-column {
