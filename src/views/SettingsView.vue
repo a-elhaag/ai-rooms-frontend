@@ -1,16 +1,50 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 
 const user = ref({
   username: 'User',
   email: 'user@example.com',
-  preferred_language: 'en',
 })
 
 const theme = ref('light')
 const aiStyle = ref('balanced')
 const aiSuggestions = ref(true)
 const autoSummarize = ref(true)
+
+// Initialize theme from localStorage or system preference
+onMounted(() => {
+  const savedTheme = localStorage.getItem('theme')
+  if (savedTheme) {
+    theme.value = savedTheme
+  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    theme.value = 'auto'
+  }
+  applyTheme()
+})
+
+// Watch for theme changes and apply
+watch(theme, () => {
+  applyTheme()
+  localStorage.setItem('theme', theme.value)
+})
+
+function applyTheme() {
+  const html = document.documentElement
+  if (theme.value === 'dark') {
+    html.setAttribute('data-theme', 'dark')
+  } else if (theme.value === 'light') {
+    html.removeAttribute('data-theme')
+  } else {
+    // Auto: use system preference
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      html.setAttribute('data-theme', 'dark')
+    } else {
+      html.removeAttribute('data-theme')
+    }
+  }
+}
 
 const saveSettings = () => {
   // TODO: Save to backend
@@ -24,12 +58,7 @@ const saveSettings = () => {
     <header class="view-header">
       <div class="header-content">
         <div class="header-icon">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-            />
-          </svg>
+          <AppIcon name="settings" size="lg" />
         </div>
         <div>
           <h1 class="view-title">Settings</h1>
@@ -44,10 +73,7 @@ const saveSettings = () => {
       <section class="settings-section">
         <div class="section-header">
           <div class="section-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
+            <AppIcon name="user" size="sm" />
           </div>
           <div>
             <h2 class="section-title">Profile</h2>
@@ -66,16 +92,6 @@ const saveSettings = () => {
               <input type="email" class="form-input" v-model="user.email" />
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Preferred Language</label>
-            <select class="form-input" v-model="user.preferred_language">
-              <option value="en">English</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="ar">Arabic</option>
-            </select>
-          </div>
         </div>
       </section>
 
@@ -83,12 +99,7 @@ const saveSettings = () => {
       <section class="settings-section">
         <div class="section-header">
           <div class="section-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="5" />
-              <path
-                d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
-              />
-            </svg>
+            <AppIcon name="sun" size="sm" />
           </div>
           <div>
             <h2 class="section-title">Appearance</h2>
@@ -107,7 +118,10 @@ const saveSettings = () => {
                 <div class="preview-sidebar"></div>
                 <div class="preview-content"></div>
               </div>
-              <span>Light</span>
+              <div class="theme-label">
+                <AppIcon name="sun" size="sm" />
+                <span>Light</span>
+              </div>
             </button>
             <button
               class="theme-option"
@@ -118,7 +132,10 @@ const saveSettings = () => {
                 <div class="preview-sidebar"></div>
                 <div class="preview-content"></div>
               </div>
-              <span>Dark</span>
+              <div class="theme-label">
+                <AppIcon name="moon" size="sm" />
+                <span>Dark</span>
+              </div>
             </button>
             <button
               class="theme-option"
@@ -129,7 +146,10 @@ const saveSettings = () => {
                 <div class="preview-sidebar"></div>
                 <div class="preview-content"></div>
               </div>
-              <span>Auto</span>
+              <div class="theme-label">
+                <AppIcon name="monitor" size="sm" />
+                <span>Auto</span>
+              </div>
             </button>
           </div>
         </div>
@@ -139,11 +159,7 @@ const saveSettings = () => {
       <section class="settings-section">
         <div class="section-header">
           <div class="section-icon ai-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="6" cy="12" r="2.5" />
-              <circle cx="12" cy="12" r="2.5" />
-              <circle cx="18" cy="12" r="2.5" />
-            </svg>
+            <AppIcon name="sparkle" size="sm" />
           </div>
           <div>
             <h2 class="section-title">AI Settings</h2>
@@ -212,14 +228,10 @@ const saveSettings = () => {
 
       <!-- Save Button -->
       <div class="save-bar">
-        <button class="btn btn-primary btn-save" @click="saveSettings">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-            <polyline points="17 21 17 13 7 13 7 21" />
-            <polyline points="7 3 7 8 15 8" />
-          </svg>
+        <AppButton variant="primary" @click="saveSettings">
+          <AppIcon name="save" size="sm" />
           Save Changes
-        </button>
+        </AppButton>
       </div>
     </div>
   </div>
@@ -231,14 +243,14 @@ const saveSettings = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: radial-gradient(circle at top, #eef4ff 0%, #f9fafb 50%, #ffffff 100%);
+  background: var(--background);
 }
 
 .view-header {
   padding: 1.5rem 2rem;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface-elevated);
   backdrop-filter: saturate(180%) blur(12px);
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
 }
 
 .header-content {
@@ -250,31 +262,24 @@ const saveSettings = () => {
 .header-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #2563eb, #60a5fa);
+  background: linear-gradient(135deg, var(--primary), var(--primary-soft));
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
-}
-
-.header-icon svg {
-  width: 24px;
-  height: 24px;
-  stroke: white;
-  fill: none;
-  stroke-width: 2;
+  box-shadow: var(--shadow-glow);
+  color: white;
 }
 
 .view-title {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary);
   margin-bottom: 0.15rem;
 }
 
 .view-subtitle {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -299,47 +304,40 @@ const saveSettings = () => {
 .section-icon {
   width: 36px;
   height: 36px;
-  background: #eff6ff;
+  background: var(--primary-muted);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--primary);
 }
 
-.section-icon svg {
-  width: 18px;
-  height: 18px;
-  stroke: #2563eb;
-  fill: none;
-  stroke-width: 2;
-}
-
-.section-icon.ai-icon svg {
-  stroke-width: 0;
-  fill: #2563eb;
+.section-icon.ai-icon {
+  background: var(--accent-muted);
+  color: var(--accent);
 }
 
 .section-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .section-desc {
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .settings-card {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
   border-radius: 1rem;
   padding: 1.25rem;
   transition: box-shadow 0.2s ease;
 }
 
 .settings-card:hover {
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.06);
+  box-shadow: var(--shadow-md);
 }
 
 .form-row {
@@ -360,35 +358,26 @@ const saveSettings = () => {
   display: block;
   font-size: 0.8rem;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 0.4rem;
 }
 
 .form-input {
   width: 100%;
   padding: 0.6rem 0.9rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
   font-size: 0.9rem;
-  color: #0f172a;
-  background: #f9fafb;
+  color: var(--text-primary);
+  background: var(--input-bg);
   transition: all 0.2s ease;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #2563eb;
-  background: white;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-select.form-input {
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  padding-right: 2.5rem;
+  border-color: var(--primary);
+  background: var(--surface-elevated);
+  box-shadow: 0 0 0 3px var(--primary-muted);
 }
 
 .theme-options {
@@ -403,7 +392,7 @@ select.form-input {
   align-items: center;
   gap: 0.6rem;
   padding: 1rem;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   border-radius: 1rem;
   background: transparent;
   cursor: pointer;
@@ -411,12 +400,12 @@ select.form-input {
 }
 
 .theme-option:hover {
-  border-color: #bfdbfe;
+  border-color: var(--primary-soft);
 }
 
 .theme-option.active {
-  border-color: #2563eb;
-  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-color: var(--primary);
+  background: var(--primary-muted);
 }
 
 .theme-preview {
@@ -425,7 +414,7 @@ select.form-input {
   border-radius: 8px;
   display: flex;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
 }
 
 .preview-sidebar {
@@ -460,14 +449,17 @@ select.form-input {
   background: linear-gradient(180deg, #ffffff 50%, #0f172a 50%);
 }
 
-.theme-option span {
+.theme-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.85rem;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
-.theme-option.active span {
-  color: #2563eb;
+.theme-option.active .theme-label {
+  color: var(--primary);
 }
 
 .radio-group {
@@ -481,26 +473,26 @@ select.form-input {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .radio-option:hover {
-  border-color: #bfdbfe;
-  background: #f9fafb;
+  border-color: var(--primary-soft);
+  background: var(--surface);
 }
 
 .radio-option.active {
-  border-color: #2563eb;
-  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-color: var(--primary);
+  background: var(--primary-muted);
 }
 
 .radio-option input {
   width: 18px;
   height: 18px;
-  accent-color: #2563eb;
+  accent-color: var(--primary);
 }
 
 .radio-content {
@@ -511,12 +503,12 @@ select.form-input {
 .radio-title {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .radio-desc {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .toggle-group {
@@ -525,7 +517,7 @@ select.form-input {
   gap: 0.75rem;
   margin-top: 1.25rem;
   padding-top: 1.25rem;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .toggle-option {
@@ -543,18 +535,18 @@ select.form-input {
 .toggle-title {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .toggle-desc {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .toggle-switch {
   width: 44px;
   height: 24px;
-  background: #e5e7eb;
+  background: var(--border-strong);
   border-radius: 999px;
   padding: 2px;
   transition: background 0.2s ease;
@@ -562,7 +554,7 @@ select.form-input {
 }
 
 .toggle-switch.on {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, var(--primary), var(--primary-soft));
 }
 
 .toggle-knob {
@@ -570,7 +562,7 @@ select.form-input {
   height: 20px;
   background: white;
   border-radius: 999px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease;
 }
 
@@ -581,40 +573,7 @@ select.form-input {
 .save-bar {
   margin-top: 1rem;
   padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.7rem 1.4rem;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
-  color: white;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
-}
-
-.btn-save svg {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 768px) {

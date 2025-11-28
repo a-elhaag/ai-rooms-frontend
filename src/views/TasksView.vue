@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
 const tasks = ref([
   {
@@ -71,10 +72,7 @@ const formatDate = (dateString) => {
         </div>
         <button class="btn btn-primary btn-new" @click="showCreateModal = true">
           <span class="btn-icon-circle">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <AppIcon name="plus" size="sm" />
           </span>
           <span>New Task</span>
         </button>
@@ -102,10 +100,7 @@ const formatDate = (dateString) => {
       <div v-if="filteredTasks.length === 0" class="empty-state">
         <div class="empty-illustration">
           <div class="empty-icon-wrap">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg>
+            <AppIcon name="check-circle" size="xl" />
           </div>
         </div>
         <h3>No tasks found</h3>
@@ -134,17 +129,11 @@ const formatDate = (dateString) => {
 
             <div class="task-meta">
               <span class="task-room">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="3" y="4" width="18" height="14" rx="2" />
-                  <path d="M7 9h10" />
-                </svg>
+                <AppIcon name="room" size="sm" />
                 {{ task.room }}
               </span>
               <span class="task-due" :class="{ overdue: formatDate(task.due) === 'Overdue' }">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
+                <AppIcon name="clock" size="sm" />
                 {{ formatDate(task.due) }}
               </span>
             </div>
@@ -152,11 +141,7 @@ const formatDate = (dateString) => {
 
           <div class="task-actions">
             <button class="icon-btn">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="19" cy="12" r="1" />
-                <circle cx="5" cy="12" r="1" />
-              </svg>
+              <AppIcon name="more-horizontal" size="sm" />
             </button>
           </div>
         </article>
@@ -171,14 +156,14 @@ const formatDate = (dateString) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: radial-gradient(circle at top, #eef4ff 0%, #f9fafb 50%, #ffffff 100%);
+  background: var(--background);
 }
 
 .view-header {
   padding: 1.5rem 2rem;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface-elevated);
   backdrop-filter: saturate(180%) blur(12px);
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
 }
 
 .header-content {
@@ -190,12 +175,12 @@ const formatDate = (dateString) => {
 .view-title {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
 .view-subtitle {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -214,14 +199,14 @@ const formatDate = (dateString) => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 14px var(--primary-glow);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+  box-shadow: 0 6px 20px var(--primary-glow);
 }
 
 .btn-icon-circle {
@@ -232,14 +217,7 @@ const formatDate = (dateString) => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.btn-icon-circle svg {
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
+  color: white;
 }
 
 .stats-row {
@@ -247,14 +225,15 @@ const formatDate = (dateString) => {
   gap: 0.75rem;
   padding: 1rem 2rem;
   overflow-x: auto;
+  background: var(--surface);
 }
 
 .stat-card {
   flex: 1;
   min-width: 120px;
   padding: 1rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
   border-radius: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -262,18 +241,18 @@ const formatDate = (dateString) => {
 }
 
 .stat-card:hover {
-  border-color: #bfdbfe;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+  border-color: var(--primary-soft);
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-card.active {
-  border-color: #2563eb;
-  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-color: var(--primary);
+  background: var(--primary-muted);
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-muted);
   text-transform: capitalize;
   margin-bottom: 0.25rem;
 }
@@ -281,11 +260,11 @@ const formatDate = (dateString) => {
 .stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .stat-card.active .stat-value {
-  color: #2563eb;
+  color: var(--primary);
 }
 
 .view-content {
@@ -308,39 +287,32 @@ const formatDate = (dateString) => {
   width: 120px;
   height: 120px;
   border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, #bfdbfe, #eff6ff 60%, #ffffff);
+  background: var(--primary-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 1rem;
-  box-shadow: 0 20px 50px rgba(37, 99, 235, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 .empty-icon-wrap {
   width: 50px;
   height: 50px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #2563eb, #60a5fa);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.empty-icon-wrap svg {
-  width: 26px;
-  height: 26px;
-  stroke: white;
-  fill: none;
-  stroke-width: 2;
+  color: white;
 }
 
 .empty-state h3 {
   font-size: 1.25rem;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .empty-state p {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -355,8 +327,8 @@ const formatDate = (dateString) => {
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem 1.25rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
   border-radius: 1rem;
   transition: all 0.2s ease;
   animation: slideIn 0.3s ease;
@@ -374,8 +346,8 @@ const formatDate = (dateString) => {
 }
 
 .task-card:hover {
-  border-color: #bfdbfe;
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08);
+  border-color: var(--primary-soft);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
 
@@ -385,7 +357,7 @@ const formatDate = (dateString) => {
 
 .task-card.status-completed .task-title {
   text-decoration: line-through;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .task-checkbox {
@@ -397,7 +369,7 @@ const formatDate = (dateString) => {
   height: 20px;
   border-radius: 6px;
   cursor: pointer;
-  accent-color: #2563eb;
+  accent-color: var(--primary);
 }
 
 .task-main {
@@ -415,7 +387,7 @@ const formatDate = (dateString) => {
 .task-title {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .priority-badge {
@@ -427,18 +399,18 @@ const formatDate = (dateString) => {
 }
 
 .priority-high {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--error-muted);
+  color: var(--error);
 }
 
 .priority-medium {
-  background: #fffbeb;
-  color: #d97706;
+  background: var(--warning-muted);
+  color: var(--warning);
 }
 
 .priority-low {
-  background: #f0fdf4;
-  color: #16a34a;
+  background: var(--success-muted);
+  color: var(--success);
 }
 
 .task-meta {
@@ -446,7 +418,7 @@ const formatDate = (dateString) => {
   align-items: center;
   gap: 1rem;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .task-room,
@@ -456,17 +428,8 @@ const formatDate = (dateString) => {
   gap: 0.3rem;
 }
 
-.task-room svg,
-.task-due svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-}
-
 .task-due.overdue {
-  color: #dc2626;
+  color: var(--error);
 }
 
 .task-actions {
@@ -482,24 +445,19 @@ const formatDate = (dateString) => {
   width: 32px;
   height: 32px;
   border: none;
-  background: #f3f4f6;
+  background: var(--surface);
   border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
+  color: var(--text-secondary);
 }
 
 .icon-btn:hover {
-  background: #e5e7eb;
-}
-
-.icon-btn svg {
-  width: 16px;
-  height: 16px;
-  stroke: #6b7280;
-  fill: #6b7280;
+  background: var(--surface-hover);
+  color: var(--primary);
 }
 
 @media (max-width: 768px) {

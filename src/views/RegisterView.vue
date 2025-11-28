@@ -2,7 +2,9 @@
   <div class="auth-container">
     <div class="auth-card">
       <div class="auth-header">
-        <div class="logo-icon">✨</div>
+        <div class="logo-icon">
+          <AppIcon name="sparkle" size="xl" />
+        </div>
         <h1>Create Account</h1>
         <p>Join AI Rooms and start collaborating</p>
       </div>
@@ -11,7 +13,9 @@
         <div class="form-group">
           <label for="username">Username</label>
           <div class="input-wrapper">
-            <span class="input-icon">👤</span>
+            <span class="input-icon">
+              <AppIcon name="user" size="sm" />
+            </span>
             <input
               id="username"
               v-model="userData.username"
@@ -28,7 +32,9 @@
         <div class="form-group">
           <label for="password">Password</label>
           <div class="input-wrapper">
-            <span class="input-icon">🔑</span>
+            <span class="input-icon">
+              <AppIcon name="lock" size="sm" />
+            </span>
             <input
               id="password"
               v-model="userData.password"
@@ -39,7 +45,7 @@
               :disabled="isLoading"
             />
             <button type="button" class="toggle-password" @click="showPassword = !showPassword">
-              {{ showPassword ? '👁️' : '🔒' }}
+              <AppIcon :name="showPassword ? 'eye' : 'eye-off'" size="sm" />
             </button>
           </div>
         </div>
@@ -47,7 +53,9 @@
         <div class="form-group">
           <label for="confirmPassword">Confirm Password</label>
           <div class="input-wrapper">
-            <span class="input-icon">🔐</span>
+            <span class="input-icon">
+              <AppIcon name="key" size="sm" />
+            </span>
             <input
               id="confirmPassword"
               v-model="confirmPassword"
@@ -59,26 +67,14 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="language">Preferred Language</label>
-          <div class="input-wrapper select-wrapper">
-            <span class="input-icon">🌐</span>
-            <select id="language" v-model="userData.preferred_language" :disabled="isLoading">
-              <option value="en">English</option>
-              <option value="ar">العربية</option>
-            </select>
-          </div>
-        </div>
-
         <div v-if="error" class="error-message">
-          <span class="error-icon">⚠️</span>
+          <AppIcon name="alert" size="sm" />
           {{ error }}
         </div>
 
-        <button type="submit" class="btn-primary" :disabled="isLoading">
-          <span v-if="isLoading" class="loading-spinner"></span>
-          <span v-else>Create Account</span>
-        </button>
+        <AppButton type="submit" variant="success" fullWidth :loading="isLoading">
+          Create Account
+        </AppButton>
       </form>
 
       <div class="auth-footer">
@@ -98,6 +94,8 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { register } from '@/services/authService'
+import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
 const isLoading = ref(false)
@@ -108,7 +106,6 @@ const confirmPassword = ref('')
 const userData = reactive({
   username: '',
   password: '',
-  preferred_language: 'en',
 })
 
 async function handleRegister() {
@@ -143,7 +140,7 @@ async function handleRegister() {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  background: linear-gradient(135deg, var(--success) 0%, #38ef7d 100%);
   position: relative;
   overflow: hidden;
 }
@@ -162,12 +159,12 @@ async function handleRegister() {
 }
 
 .auth-card {
-  background: white;
+  background: var(--surface-elevated);
   border-radius: 24px;
   padding: 3rem;
   width: 100%;
   max-width: 440px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-xl);
   position: relative;
   overflow: hidden;
   animation: slideUp 0.6s ease-out;
@@ -190,8 +187,16 @@ async function handleRegister() {
 }
 
 .logo-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1rem;
+  background: linear-gradient(135deg, var(--success), #38ef7d);
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -207,13 +212,13 @@ async function handleRegister() {
 
 .auth-header h1 {
   font-size: 1.75rem;
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin: 0 0 0.5rem 0;
   font-weight: 700;
 }
 
 .auth-header p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -231,7 +236,7 @@ async function handleRegister() {
 
 .form-group label {
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
@@ -244,48 +249,37 @@ async function handleRegister() {
 .input-icon {
   position: absolute;
   left: 1rem;
-  font-size: 1rem;
+  color: var(--text-muted);
   z-index: 1;
+  display: flex;
+  align-items: center;
 }
 
-.input-wrapper input,
-.input-wrapper select {
+.input-wrapper input {
   width: 100%;
-  padding: 0.875rem 1rem 0.875rem 3rem;
-  border: 2px solid #e5e7eb;
+  padding: 0.875rem 1rem 0.875rem 2.75rem;
+  border: 2px solid var(--border);
   border-radius: 12px;
   font-size: 1rem;
   transition: all 0.3s ease;
-  background: #f9fafb;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
-.input-wrapper input:focus,
-.input-wrapper select:focus {
+.input-wrapper input::placeholder {
+  color: var(--text-muted);
+}
+
+.input-wrapper input:focus {
   outline: none;
-  border-color: #11998e;
-  background: white;
-  box-shadow: 0 0 0 4px rgba(17, 153, 142, 0.1);
+  border-color: var(--success);
+  background: var(--surface-elevated);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
 }
 
-.input-wrapper input:disabled,
-.input-wrapper select:disabled {
+.input-wrapper input:disabled {
   opacity: 0.7;
   cursor: not-allowed;
-}
-
-.select-wrapper select {
-  appearance: none;
-  cursor: pointer;
-  padding-right: 2.5rem;
-}
-
-.select-wrapper::after {
-  content: '▼';
-  position: absolute;
-  right: 1rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-  pointer-events: none;
 }
 
 .toggle-password {
@@ -294,20 +288,21 @@ async function handleRegister() {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
   padding: 0;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  color: var(--text-muted);
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
 }
 
 .toggle-password:hover {
-  opacity: 1;
+  color: var(--text-primary);
 }
 
 .error-message {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  color: var(--error);
   padding: 0.75rem 1rem;
   border-radius: 10px;
   font-size: 0.875rem;
@@ -330,63 +325,20 @@ async function handleRegister() {
   }
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: white;
-  border: none;
-  padding: 1rem 2rem;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 52px;
-  margin-top: 0.5rem;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(17, 153, 142, 0.4);
-}
-
-.btn-primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .auth-footer {
   text-align: center;
   margin-top: 2rem;
   padding-top: 2rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
 }
 
 .auth-footer p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
 .auth-footer a {
-  color: #11998e;
+  color: var(--success);
   text-decoration: none;
   font-weight: 600;
   transition: color 0.2s;
@@ -410,7 +362,7 @@ async function handleRegister() {
   position: absolute;
   border-radius: 50%;
   opacity: 0.1;
-  background: linear-gradient(135deg, #11998e, #38ef7d);
+  background: linear-gradient(135deg, var(--success), #38ef7d);
 }
 
 .shape-1 {

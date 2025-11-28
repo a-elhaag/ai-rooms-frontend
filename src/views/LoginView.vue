@@ -2,7 +2,9 @@
   <div class="auth-container">
     <div class="auth-card">
       <div class="auth-header">
-        <div class="logo-icon">🔐</div>
+        <div class="logo-icon">
+          <AppIcon name="key" size="xl" />
+        </div>
         <h1>Welcome Back</h1>
         <p>Sign in to your AI Rooms account</p>
       </div>
@@ -11,7 +13,9 @@
         <div class="form-group">
           <label for="username">Username</label>
           <div class="input-wrapper">
-            <span class="input-icon">👤</span>
+            <span class="input-icon">
+              <AppIcon name="user" size="sm" />
+            </span>
             <input
               id="username"
               v-model="credentials.username"
@@ -26,7 +30,9 @@
         <div class="form-group">
           <label for="password">Password</label>
           <div class="input-wrapper">
-            <span class="input-icon">🔑</span>
+            <span class="input-icon">
+              <AppIcon name="lock" size="sm" />
+            </span>
             <input
               id="password"
               v-model="credentials.password"
@@ -36,20 +42,19 @@
               :disabled="isLoading"
             />
             <button type="button" class="toggle-password" @click="showPassword = !showPassword">
-              {{ showPassword ? '👁️' : '🔒' }}
+              <AppIcon :name="showPassword ? 'eye' : 'eye-off'" size="sm" />
             </button>
           </div>
         </div>
 
         <div v-if="error" class="error-message">
-          <span class="error-icon">⚠️</span>
+          <AppIcon name="alert" size="sm" />
           {{ error }}
         </div>
 
-        <button type="submit" class="btn-primary" :disabled="isLoading">
-          <span v-if="isLoading" class="loading-spinner"></span>
-          <span v-else>Sign In</span>
-        </button>
+        <AppButton type="submit" variant="primary" fullWidth :loading="isLoading">
+          Sign In
+        </AppButton>
       </form>
 
       <div class="auth-footer">
@@ -69,6 +74,8 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { login } from '@/services/authService'
+import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
 const isLoading = ref(false)
@@ -105,7 +112,7 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
   position: relative;
   overflow: hidden;
 }
@@ -124,12 +131,12 @@ async function handleLogin() {
 }
 
 .auth-card {
-  background: white;
+  background: var(--surface-elevated);
   border-radius: 24px;
   padding: 3rem;
   width: 100%;
   max-width: 440px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-xl);
   position: relative;
   overflow: hidden;
   animation: slideUp 0.6s ease-out;
@@ -152,8 +159,16 @@ async function handleLogin() {
 }
 
 .logo-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1rem;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: var(--shadow-glow);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -169,13 +184,13 @@ async function handleLogin() {
 
 .auth-header h1 {
   font-size: 1.75rem;
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin: 0 0 0.5rem 0;
   font-weight: 700;
 }
 
 .auth-header p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -193,7 +208,7 @@ async function handleLogin() {
 
 .form-group label {
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
@@ -206,25 +221,32 @@ async function handleLogin() {
 .input-icon {
   position: absolute;
   left: 1rem;
-  font-size: 1rem;
+  color: var(--text-muted);
   z-index: 1;
+  display: flex;
+  align-items: center;
 }
 
 .input-wrapper input {
   width: 100%;
-  padding: 0.875rem 1rem 0.875rem 3rem;
-  border: 2px solid #e5e7eb;
+  padding: 0.875rem 1rem 0.875rem 2.75rem;
+  border: 2px solid var(--border);
   border-radius: 12px;
   font-size: 1rem;
   transition: all 0.3s ease;
-  background: #f9fafb;
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.input-wrapper input::placeholder {
+  color: var(--text-muted);
 }
 
 .input-wrapper input:focus {
   outline: none;
-  border-color: #667eea;
-  background: white;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  border-color: var(--primary);
+  background: var(--surface-elevated);
+  box-shadow: 0 0 0 4px var(--primary-muted);
 }
 
 .input-wrapper input:disabled {
@@ -238,20 +260,21 @@ async function handleLogin() {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
   padding: 0;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  color: var(--text-muted);
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
 }
 
 .toggle-password:hover {
-  opacity: 1;
+  color: var(--text-primary);
 }
 
 .error-message {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  color: var(--error);
   padding: 0.75rem 1rem;
   border-radius: 10px;
   font-size: 0.875rem;
@@ -274,69 +297,27 @@ async function handleLogin() {
   }
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 1rem 2rem;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 52px;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
-}
-
-.btn-primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .auth-footer {
   text-align: center;
   margin-top: 2rem;
   padding-top: 2rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
 }
 
 .auth-footer p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
 .auth-footer a {
-  color: #667eea;
+  color: var(--primary);
   text-decoration: none;
   font-weight: 600;
   transition: color 0.2s;
 }
 
 .auth-footer a:hover {
-  color: #764ba2;
+  color: var(--accent);
 }
 
 .auth-decoration {
@@ -353,7 +334,7 @@ async function handleLogin() {
   position: absolute;
   border-radius: 50%;
   opacity: 0.1;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
 }
 
 .shape-1 {

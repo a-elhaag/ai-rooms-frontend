@@ -3,11 +3,18 @@
     <div class="chat-header">
       <div class="chat-info">
         <h2>{{ roomName }}</h2>
-        <span class="status-indicator online">● Active</span>
+        <span class="status-indicator online">
+          <span class="status-dot"></span>
+          Active
+        </span>
       </div>
       <div class="chat-actions">
-        <button class="icon-btn" title="Search messages">🔍</button>
-        <button class="icon-btn" title="Room settings">⚙️</button>
+        <button class="icon-btn" title="Search messages">
+          <AppIcon name="search" size="sm" />
+        </button>
+        <button class="icon-btn" title="Room settings">
+          <AppIcon name="settings" size="sm" />
+        </button>
       </div>
     </div>
 
@@ -22,7 +29,7 @@
         :class="['message', message.isAi ? 'ai-message' : 'user-message']"
       >
         <div class="message-avatar">
-          {{ message.isAi ? '🤖' : '👤' }}
+          <AppIcon :name="message.isAi ? 'bot' : 'user'" size="md" />
         </div>
         <div class="message-content">
           <div class="message-header">
@@ -40,7 +47,9 @@
 
       <div v-if="isTyping" class="typing-indicator">
         <div class="message ai-message">
-          <div class="message-avatar">🤖</div>
+          <div class="message-avatar">
+            <AppIcon name="bot" size="md" />
+          </div>
           <div class="message-content">
             <div class="typing-dots">
               <span></span>
@@ -54,9 +63,15 @@
 
     <div class="input-area">
       <div class="input-tools">
-        <button class="tool-btn" title="Attach file">📎</button>
-        <button class="tool-btn" title="Add emoji">😊</button>
-        <button class="tool-btn" title="Voice message">🎤</button>
+        <button class="tool-btn" title="Attach file">
+          <AppIcon name="paperclip" size="sm" />
+        </button>
+        <button class="tool-btn" title="Add emoji">
+          <AppIcon name="smile" size="sm" />
+        </button>
+        <button class="tool-btn" title="Voice message">
+          <AppIcon name="mic" size="sm" />
+        </button>
       </div>
       <div class="input-wrapper">
         <input
@@ -67,7 +82,7 @@
           :disabled="isTyping"
         />
         <button @click="sendMessage" class="send-btn" :disabled="!newMessage.trim() || isTyping">
-          <span class="send-icon">➤</span>
+          <AppIcon name="send" size="md" />
         </button>
       </div>
     </div>
@@ -76,6 +91,7 @@
 
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
 const props = defineProps({
   roomName: {
@@ -197,10 +213,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f8fafc;
+  background: var(--background);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-md);
 }
 
 .chat-header {
@@ -208,23 +224,34 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--surface-elevated);
+  border-bottom: 1px solid var(--border);
 }
 
 .chat-info h2 {
   margin: 0 0 0.25rem 0;
   font-size: 1.25rem;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .status-indicator {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .status-indicator.online {
-  color: #22c55e;
+  color: var(--success);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
 }
 
 .chat-actions {
@@ -233,17 +260,22 @@ onMounted(() => {
 }
 
 .icon-btn {
-  background: #f1f5f9;
+  background: var(--surface);
   border: none;
   width: 36px;
   height: 36px;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
 }
 
 .icon-btn:hover {
-  background: #e2e8f0;
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .messages-area {
@@ -259,7 +291,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 1rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 0.75rem;
   margin: 0.5rem 0;
 }
@@ -269,7 +301,7 @@ onMounted(() => {
   content: '';
   flex: 1;
   height: 1px;
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 .message {
@@ -306,25 +338,28 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
-  background: #f1f5f9;
+  background: var(--surface);
   flex-shrink: 0;
+  color: var(--text-secondary);
 }
 
 .ai-message .message-avatar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: white;
 }
 
 .message-content {
-  background: white;
+  background: var(--surface-elevated);
   padding: 0.875rem 1rem;
   border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
 }
 
 .user-message .message-content {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
+  border: none;
 }
 
 .message-header {
@@ -338,7 +373,7 @@ onMounted(() => {
 .sender-name {
   font-weight: 600;
   font-size: 0.875rem;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .user-message .sender-name {
@@ -347,7 +382,7 @@ onMounted(() => {
 
 .message-time {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .user-message .message-time {
@@ -357,6 +392,11 @@ onMounted(() => {
 .message-text {
   line-height: 1.5;
   font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+
+.user-message .message-text {
+  color: white;
 }
 
 .message-text :deep(strong) {
@@ -370,7 +410,7 @@ onMounted(() => {
 }
 
 .reaction {
-  background: #f1f5f9;
+  background: var(--surface);
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
   font-size: 0.75rem;
@@ -379,7 +419,7 @@ onMounted(() => {
 }
 
 .reaction:hover {
-  background: #e2e8f0;
+  background: var(--surface-hover);
 }
 
 .typing-indicator .message-content {
@@ -394,7 +434,7 @@ onMounted(() => {
 .typing-dots span {
   width: 8px;
   height: 8px;
-  background: #94a3b8;
+  background: var(--text-muted);
   border-radius: 50%;
   animation: bounce 1.4s ease-in-out infinite;
 }
@@ -419,9 +459,9 @@ onMounted(() => {
 }
 
 .input-area {
-  background: white;
+  background: var(--surface-elevated);
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
 }
 
 .input-tools {
@@ -431,18 +471,22 @@ onMounted(() => {
 }
 
 .tool-btn {
-  background: #f1f5f9;
+  background: var(--surface);
   border: none;
   width: 32px;
   height: 32px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.875rem;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
 }
 
 .tool-btn:hover {
-  background: #e2e8f0;
+  background: var(--surface-hover);
+  color: var(--primary);
   transform: scale(1.1);
 }
 
@@ -454,18 +498,23 @@ onMounted(() => {
 .input-wrapper input {
   flex: 1;
   padding: 0.875rem 1rem;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   border-radius: 12px;
   font-size: 0.9375rem;
   transition: all 0.3s;
-  background: #f8fafc;
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.input-wrapper input::placeholder {
+  color: var(--text-muted);
 }
 
 .input-wrapper input:focus {
   outline: none;
-  border-color: #667eea;
-  background: white;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  border-color: var(--primary);
+  background: var(--surface-elevated);
+  box-shadow: 0 0 0 4px var(--primary-muted);
 }
 
 .input-wrapper input:disabled {
@@ -473,7 +522,7 @@ onMounted(() => {
 }
 
 .send-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
   border: none;
   width: 48px;
@@ -488,15 +537,11 @@ onMounted(() => {
 
 .send-btn:hover:not(:disabled) {
   transform: scale(1.05);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-glow);
 }
 
 .send-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.send-icon {
-  font-size: 1.25rem;
 }
 </style>
