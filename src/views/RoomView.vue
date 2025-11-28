@@ -49,7 +49,7 @@ const commandSearch = ref('')
 const commandActiveIndex = ref(0)
 
 // Reactions
-const reactionOptions = ['👍', '🎉', '❤️', '👀']
+const reactionOptions = ['👍', '🎉', '❤️', '👀', '😂', '🤪']
 const messageReactions = ref({})
 const myReactions = ref({})
 
@@ -401,8 +401,7 @@ const handleKeyDown = (e) => {
   if (showMentionMenu.value && filteredMentions.value.length > 0) {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      mentionActiveIndex.value =
-        (mentionActiveIndex.value + 1) % filteredMentions.value.length
+      mentionActiveIndex.value = (mentionActiveIndex.value + 1) % filteredMentions.value.length
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       mentionActiveIndex.value =
@@ -421,8 +420,7 @@ const handleKeyDown = (e) => {
   if (showCommandMenu.value && filteredCommands.value.length > 0) {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      commandActiveIndex.value =
-        (commandActiveIndex.value + 1) % filteredCommands.value.length
+      commandActiveIndex.value = (commandActiveIndex.value + 1) % filteredCommands.value.length
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       commandActiveIndex.value =
@@ -532,6 +530,17 @@ const toggleReaction = (message, emoji) => {
   const nextCount = Math.max((reactions[emoji] || 0) + (hasReacted ? -1 : 1), 0)
   messageReactions.value[id] = { ...reactions, [emoji]: nextCount }
   myReactions.value[id] = { ...mine, [emoji]: !hasReacted }
+
+  // Send via WebSocket
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(
+      JSON.stringify({
+        type: 'reaction',
+        message_id: id,
+        emoji: emoji,
+      }),
+    )
+  }
 }
 
 const handleMessagesKeyDown = (e) => {
@@ -656,6 +665,15 @@ const connectWebSocket = () => {
         } else if (data.type === 'typing') {
           // Handle typing indicators
           console.log(`${data.username} is typing...`)
+        } else if (data.type === 'reaction') {
+          // Handle incoming reactions from other users
+          const msgId = data.message_id
+          const emoji = data.emoji
+          if (msgId && emoji) {
+            const reactions = messageReactions.value[msgId] || {}
+            reactions[emoji] = (reactions[emoji] || 0) + 1
+            messageReactions.value[msgId] = { ...reactions }
+          }
         }
       } catch (err) {
         console.error('WebSocket message error:', err)
@@ -853,7 +871,10 @@ watch(filteredCommands, () => {
                     @click="toggleReaction(message, emoji)"
                   >
                     {{ emoji }}
-                    <span v-if="(messageReactions[message.id]?.[emoji] || 0) > 0" class="reaction-count">
+                    <span
+                      v-if="(messageReactions[message.id]?.[emoji] || 0) > 0"
+                      class="reaction-count"
+                    >
                       {{ messageReactions[message.id][emoji] }}
                     </span>
                   </button>
@@ -922,7 +943,7 @@ watch(filteredCommands, () => {
               type="text"
               class="message-input"
               placeholder="Type @ to mention, / for commands..."
-              @keyup.enter="(showMentionMenu || showCommandMenu) ? null : sendMessage()"
+              @keyup.enter="showMentionMenu || showCommandMenu ? null : sendMessage()"
               @input="handleMessageInput"
               @keydown="handleKeyDown"
               ref="messageInputField"
@@ -1011,7 +1032,9 @@ watch(filteredCommands, () => {
                         >
                           Cancel
                         </button>
-                        <button v-else class="chip-btn" @click="startEditingTask(task)">Edit</button>
+                        <button v-else class="chip-btn" @click="startEditingTask(task)">
+                          Edit
+                        </button>
                         <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
                       </div>
                     </div>
@@ -1031,9 +1054,7 @@ watch(filteredCommands, () => {
                           <select
                             class="task-status-select assignee-select"
                             :value="
-                              task.assignee_id ||
-                              (task.assignee_name === 'AI' ? 'ai' : '') ||
-                              ''
+                              task.assignee_id || (task.assignee_name === 'AI' ? 'ai' : '') || ''
                             "
                             @change="updateTaskAssignee(task, $event.target.value || null)"
                           >
@@ -1105,7 +1126,9 @@ watch(filteredCommands, () => {
                         >
                           Cancel
                         </button>
-                        <button v-else class="chip-btn" @click="startEditingTask(task)">Edit</button>
+                        <button v-else class="chip-btn" @click="startEditingTask(task)">
+                          Edit
+                        </button>
                         <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
                       </div>
                     </div>
@@ -1125,9 +1148,7 @@ watch(filteredCommands, () => {
                           <select
                             class="task-status-select assignee-select"
                             :value="
-                              task.assignee_id ||
-                              (task.assignee_name === 'AI' ? 'ai' : '') ||
-                              ''
+                              task.assignee_id || (task.assignee_name === 'AI' ? 'ai' : '') || ''
                             "
                             @change="updateTaskAssignee(task, $event.target.value || null)"
                           >
@@ -1199,7 +1220,9 @@ watch(filteredCommands, () => {
                         >
                           Cancel
                         </button>
-                        <button v-else class="chip-btn" @click="startEditingTask(task)">Edit</button>
+                        <button v-else class="chip-btn" @click="startEditingTask(task)">
+                          Edit
+                        </button>
                         <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
                       </div>
                     </div>
@@ -1219,9 +1242,7 @@ watch(filteredCommands, () => {
                           <select
                             class="task-status-select assignee-select"
                             :value="
-                              task.assignee_id ||
-                              (task.assignee_name === 'AI' ? 'ai' : '') ||
-                              ''
+                              task.assignee_id || (task.assignee_name === 'AI' ? 'ai' : '') || ''
                             "
                             @change="updateTaskAssignee(task, $event.target.value || null)"
                           >
@@ -1340,7 +1361,7 @@ watch(filteredCommands, () => {
   background: var(--background);
 }
 
-/* Room Header */
+
 .room-header {
   display: flex;
   align-items: center;
