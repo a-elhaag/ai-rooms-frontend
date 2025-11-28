@@ -19,9 +19,14 @@ const members = ref([])
 const loading = ref(true)
 const error = ref(null)
 const messageInput = ref('')
+const messageInputField = ref(null)
 const sending = ref(false)
 const messagesContainer = ref(null)
-const activePanel = ref('chat') // chat, tasks, knowledge
+const activePanel = ref('tasks') // tasks, knowledge
+const replyingTo = ref(null)
+const activeMessageIndex = ref(-1)
+const draggedMessageId = ref(null)
+const draggedTaskId = ref(null)
 
 // AI Features
 const showAIMenu = ref(false)
@@ -29,11 +34,24 @@ const aiLoading = ref(false)
 const showTaskDialog = ref(false)
 const newTaskTitle = ref('')
 const newTaskAssignee = ref('')
+const editingTaskId = ref(null)
+const editingTaskTitle = ref('')
 
 // Mention autocomplete
 const showMentionMenu = ref(false)
 const mentionSearch = ref('')
 const mentionPosition = ref({ top: 0, left: 0 })
+const mentionActiveIndex = ref(0)
+
+// Slash commands
+const showCommandMenu = ref(false)
+const commandSearch = ref('')
+const commandActiveIndex = ref(0)
+
+// Reactions
+const reactionOptions = ['👍', '🎉', '❤️', '👀']
+const messageReactions = ref({})
+const myReactions = ref({})
 
 // WebSocket connection
 let ws = null
@@ -52,11 +70,51 @@ const assignableMembers = computed(() => {
   return list
 })
 
+const slashCommands = [
+  {
+    id: 'help',
+    label: 'Help',
+    description: 'Insert /help to see available commands',
+    action: 'insert',
+    text: '/help ',
+  },
+  {
+    id: 'summarize',
+    label: 'Summarize chat',
+    description: 'Ask AI to summarize the recent conversation',
+    action: 'summarize',
+  },
+  {
+    id: 'tasks',
+    label: 'Share tasks',
+    description: 'Drop the current task board into the chat',
+    action: 'tasks',
+  },
+  {
+    id: 'ask-ai',
+    label: 'Ask AI',
+    description: 'Mention the AI directly',
+    action: 'insert',
+    text: '@AI Assistant ',
+  },
+]
+
 // Filtered members for @mention autocomplete
 const filteredMentions = computed(() => {
   if (!mentionSearch.value) return assignableMembers.value
   const search = mentionSearch.value.toLowerCase()
   return assignableMembers.value.filter((m) => m.username.toLowerCase().includes(search))
+})
+
+const filteredCommands = computed(() => {
+  if (!commandSearch.value) return slashCommands
+  const search = commandSearch.value.toLowerCase()
+  return slashCommands.filter(
+    (command) =>
+      command.id.toLowerCase().includes(search) ||
+      command.label.toLowerCase().includes(search) ||
+      command.description.toLowerCase().includes(search),
+  )
 })
 
 // Fetch room details
@@ -68,6 +126,7 @@ const fetchRoom = async () => {
     // Fetch room messages
     const messagesResponse = await roomService.getRoomMessages(roomId.value, { limit: 50 })
     messages.value = (messagesResponse.items || messagesResponse || []).reverse()
+    activeMessageIndex.value = messages.value.length - 1
 
     // Fetch tasks
     await fetchTasks()
@@ -182,6 +241,48 @@ const updateTaskAssignee = async (task, newAssigneeId) => {
   }
 }
 
+const startEditingTask = (task) => {
+  editingTaskId.value = task.id
+  editingTaskTitle.value = task.title
+}
+
+const saveTaskEdit = async (task) => {
+  if (!editingTaskTitle.value.trim()) return
+  try {
+    const updated = await taskService.updateTask(task.id, { title: editingTaskTitle.value.trim() })
+    const index = tasks.value.findIndex((t) => t.id === task.id)
+    if (index !== -1) {
+      tasks.value[index] = updated
+    }
+  } catch (err) {
+    console.error('Failed to update task title:', err)
+  } finally {
+    editingTaskId.value = null
+    editingTaskTitle.value = ''
+  }
+}
+
+const cancelTaskEdit = () => {
+  editingTaskId.value = null
+  editingTaskTitle.value = ''
+}
+
+const resolveTask = (task) => {
+  updateTaskStatus(task, 'done')
+}
+
+const handleTaskDragStart = (task) => {
+  draggedTaskId.value = task.id
+}
+
+const handleTaskDrop = (newStatus) => {
+  if (!draggedTaskId.value) return
+  const task = tasks.value.find((t) => t.id === draggedTaskId.value)
+  draggedTaskId.value = null
+  if (!task || task.status === newStatus) return
+  updateTaskStatus(task, newStatus)
+}
+
 // Handle @mention input
 const handleMessageInput = (e) => {
   const value = e.target.value
@@ -190,21 +291,33 @@ const handleMessageInput = (e) => {
   // Check if we're typing a mention
   const textBeforeCursor = value.substring(0, cursorPos)
   const mentionMatch = textBeforeCursor.match(/@(\w*)$/)
+  const commandMatch = textBeforeCursor.match(/\/(\w*)$/)
 
   if (mentionMatch) {
     mentionSearch.value = mentionMatch[1]
     showMentionMenu.value = true
     // Position the menu (simplified)
     mentionPosition.value = { bottom: 60, left: 20 }
+    mentionActiveIndex.value = 0
   } else {
     showMentionMenu.value = false
     mentionSearch.value = ''
+  }
+
+  if (commandMatch) {
+    commandSearch.value = commandMatch[1]
+    showCommandMenu.value = true
+    commandActiveIndex.value = 0
+  } else {
+    showCommandMenu.value = false
+    commandSearch.value = ''
   }
 }
 
 // Insert mention
 const insertMention = (member) => {
-  const cursorPos = document.querySelector('.message-input').selectionStart
+  const inputEl = messageInputField.value
+  const cursorPos = inputEl?.selectionStart ?? messageInput.value.length
   const textBeforeCursor = messageInput.value.substring(0, cursorPos)
   const textAfterCursor = messageInput.value.substring(cursorPos)
 
@@ -216,6 +329,99 @@ const insertMention = (member) => {
   messageInput.value = newText
   showMentionMenu.value = false
   mentionSearch.value = ''
+  nextTick(() => {
+    if (inputEl) {
+      const newCursorPos = mentionStart + member.username.length + 2
+      inputEl.focus()
+      inputEl.setSelectionRange(newCursorPos, newCursorPos)
+    }
+  })
+}
+
+const insertCommandText = (text) => {
+  const inputEl = messageInputField.value
+  const cursorPos = inputEl?.selectionStart ?? messageInput.value.length
+  const textBeforeCursor = messageInput.value.substring(0, cursorPos)
+  const textAfterCursor = messageInput.value.substring(cursorPos)
+  const commandStart = textBeforeCursor.lastIndexOf('/')
+  const startIndex = commandStart === -1 ? cursorPos : commandStart
+  const newText = textBeforeCursor.substring(0, startIndex) + text + textAfterCursor
+
+  messageInput.value = newText
+  nextTick(() => {
+    if (inputEl) {
+      const newCursorPos = startIndex + text.length
+      inputEl.focus()
+      inputEl.setSelectionRange(newCursorPos, newCursorPos)
+    }
+  })
+  showCommandMenu.value = false
+  commandSearch.value = ''
+}
+
+const selectCommand = async (command) => {
+  showCommandMenu.value = false
+  commandSearch.value = ''
+
+  if (command.action === 'insert') {
+    insertCommandText(command.text)
+    return
+  }
+
+  if (command.action === 'summarize') {
+    await summarizeConversation()
+    return
+  }
+
+  if (command.action === 'tasks') {
+    addTasksSnapshotToChat()
+    return
+  }
+}
+
+const handleKeyDown = (e) => {
+  if (e.key === 'Escape' && replyingTo.value) {
+    replyingTo.value = null
+  }
+
+  if (showMentionMenu.value && filteredMentions.value.length > 0) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      mentionActiveIndex.value =
+        (mentionActiveIndex.value + 1) % filteredMentions.value.length
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      mentionActiveIndex.value =
+        (mentionActiveIndex.value - 1 + filteredMentions.value.length) %
+        filteredMentions.value.length
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      insertMention(filteredMentions.value[mentionActiveIndex.value])
+    } else if (e.key === 'Escape') {
+      showMentionMenu.value = false
+      mentionSearch.value = ''
+    }
+    return
+  }
+
+  if (showCommandMenu.value && filteredCommands.value.length > 0) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      commandActiveIndex.value =
+        (commandActiveIndex.value + 1) % filteredCommands.value.length
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      commandActiveIndex.value =
+        (commandActiveIndex.value - 1 + filteredCommands.value.length) %
+        filteredCommands.value.length
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      selectCommand(filteredCommands.value[commandActiveIndex.value])
+    } else if (e.key === 'Escape') {
+      showCommandMenu.value = false
+      commandSearch.value = ''
+    }
+  }
 }
 
 // AI Actions
@@ -232,12 +438,132 @@ const summarizeConversation = async () => {
   }
 }
 
+const addTasksSnapshotToChat = () => {
+  const sections = [
+    { label: 'To Do', items: todoTasks.value },
+    { label: 'In Progress', items: inProgressTasks.value },
+    { label: 'Done', items: completedTasks.value },
+  ]
+
+  const contentParts = sections
+    .filter((section) => section.items.length > 0)
+    .map((section) => {
+      const items = section.items
+        .map((task) => {
+          const assignee = task.assignee_name ? ` - ${task.assignee_name}` : ''
+          return `${task.title}${assignee}`
+        })
+        .join('; ')
+      return `${section.label}: ${items}`
+    })
+
+  const content =
+    contentParts.length > 0
+      ? `Here is the latest task board -> ${contentParts.join(' | ')}`
+      : 'There are no tasks yet.'
+
+  messages.value.push({
+    id: `ai-task-${Date.now()}`,
+    sender_type: 'ai',
+    sender_name: 'AI Assistant',
+    content,
+    created_at: new Date().toISOString(),
+  })
+  nextTick(() => scrollToBottom())
+}
+
+const messageHasAIMention = (text) => {
+  if (!text) return false
+  return /@ai(\b|_)/i.test(text) || /@ai assistant/i.test(text)
+}
+
+const triggerAIReply = async (content) => {
+  try {
+    aiLoading.value = true
+    const aiMessage = await aiService.chatWithAI(roomId.value, content)
+    if (aiMessage?.content) {
+      messages.value.push({
+        id: `ai-${Date.now()}`,
+        sender_type: 'ai',
+        sender_name: 'AI Assistant',
+        content: aiMessage.content,
+        created_at: new Date().toISOString(),
+      })
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (err) {
+    console.error('Failed to get AI reply:', err)
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+const setReplyTarget = (message) => {
+  replyingTo.value = message
+  if (messagesContainer.value) {
+    messagesContainer.value.focus()
+  }
+}
+
+const cancelReply = () => {
+  replyingTo.value = null
+}
+
+const toggleReaction = (message, emoji) => {
+  const id = message.id
+  const reactions = messageReactions.value[id] || {}
+  const mine = myReactions.value[id] || {}
+  const hasReacted = !!mine[emoji]
+  const nextCount = Math.max((reactions[emoji] || 0) + (hasReacted ? -1 : 1), 0)
+  messageReactions.value[id] = { ...reactions, [emoji]: nextCount }
+  myReactions.value[id] = { ...mine, [emoji]: !hasReacted }
+}
+
+const handleMessagesKeyDown = (e) => {
+  if (!messages.value.length) return
+  if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    activeMessageIndex.value =
+      activeMessageIndex.value <= 0 ? messages.value.length - 1 : activeMessageIndex.value - 1
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    activeMessageIndex.value =
+      activeMessageIndex.value >= messages.value.length - 1 ? 0 : activeMessageIndex.value + 1
+  } else if (e.key === 'Enter' || e.key === 'r') {
+    e.preventDefault()
+    setReplyTarget(messages.value[activeMessageIndex.value])
+  } else if (e.key === 'l') {
+    e.preventDefault()
+    toggleReaction(messages.value[activeMessageIndex.value], '👍')
+  }
+}
+
+const handleMessageDragStart = (message) => {
+  draggedMessageId.value = message.id
+}
+
+const handleMessageDrop = () => {
+  if (!draggedMessageId.value) return
+  const message = messages.value.find((m) => m.id === draggedMessageId.value)
+  if (message) {
+    setReplyTarget(message)
+  }
+  draggedMessageId.value = null
+}
+
 // Send message
 const sendMessage = async () => {
   if (!messageInput.value.trim() || sending.value) return
 
   const content = messageInput.value.trim()
+  const wantsAIReply = messageHasAIMention(content)
+  const replyPayload = replyingTo.value ? { reply_to: replyingTo.value.id } : {}
+  const aiContext = replyingTo.value
+    ? `${content}\n\n(Replying to "${replyingTo.value.content}")`
+    : content
   messageInput.value = ''
+  replyingTo.value = null
 
   try {
     sending.value = true
@@ -248,6 +574,7 @@ const sendMessage = async () => {
         JSON.stringify({
           type: 'message',
           content: content,
+          ...replyPayload,
         }),
       )
       // Message will be added when broadcast is received
@@ -256,10 +583,15 @@ const sendMessage = async () => {
       const newMessage = await roomService.sendMessage(roomId.value, {
         content,
         sender_type: 'user',
+        ...replyPayload,
       })
       messages.value.push(newMessage)
       await nextTick()
       scrollToBottom()
+
+      if (wantsAIReply) {
+        await triggerAIReply(aiContext)
+      }
     }
   } catch (err) {
     console.error('Failed to send message:', err)
@@ -371,6 +703,11 @@ const getMessageClass = (message) => {
   return 'message-human'
 }
 
+const getReplyTarget = (message) => {
+  if (!message?.reply_to) return null
+  return messages.value.find((m) => m.id === message.reply_to) || null
+}
+
 onMounted(() => {
   fetchRoom()
   connectWebSocket()
@@ -386,6 +723,15 @@ onUnmounted(() => {
 // Watch for new messages and scroll
 watch(messages, () => {
   nextTick(() => scrollToBottom())
+  activeMessageIndex.value = messages.value.length ? messages.value.length - 1 : -1
+})
+
+watch(filteredMentions, () => {
+  mentionActiveIndex.value = 0
+})
+
+watch(filteredCommands, () => {
+  commandActiveIndex.value = 0
 })
 </script>
 
@@ -430,7 +776,13 @@ watch(messages, () => {
         </div>
 
         <!-- Messages -->
-        <div v-else class="messages-container" ref="messagesContainer">
+        <div
+          v-else
+          class="messages-container"
+          ref="messagesContainer"
+          tabindex="0"
+          @keydown="handleMessagesKeyDown"
+        >
           <div v-if="messages.length === 0" class="empty-messages">
             <div class="empty-icon">
               <AppIcon name="room" size="xl" />
@@ -443,7 +795,14 @@ watch(messages, () => {
             v-for="message in messages"
             :key="message.id"
             class="message"
-            :class="getMessageClass(message)"
+            :class="[
+              getMessageClass(message),
+              { active: messages[activeMessageIndex]?.id === message.id },
+            ]"
+            draggable="true"
+            @dragstart="handleMessageDragStart(message)"
+            @click="activeMessageIndex = messages.indexOf(message)"
+            @dblclick="setReplyTarget(message)"
           >
             <div class="message-avatar">
               <AppIcon v-if="message.sender_type === 'ai'" name="bot" size="sm" />
@@ -458,23 +817,47 @@ watch(messages, () => {
                 </span>
                 <span class="message-time">{{ formatTime(message.created_at) }}</span>
               </div>
+              <div v-if="getReplyTarget(message)" class="reply-preview">
+                <span class="reply-label">@{{ getReplyTarget(message)?.sender_name || 'Message' }}</span>
+                <div class="reply-snippet">
+                  {{ getReplyTarget(message)?.content || 'Original message' }}
+                </div>
+              </div>
               <div class="message-body">
                 {{ message.content }}
+              </div>
+              <div class="message-actions">
+                <button class="link-btn" @click="setReplyTarget(message)">Reply</button>
+                <div class="reactions">
+                  <button
+                    v-for="emoji in reactionOptions"
+                    :key="emoji"
+                    class="reaction-btn"
+                    @click="toggleReaction(message, emoji)"
+                  >
+                    {{ emoji }}
+                    <span v-if="(messageReactions[message.id]?.[emoji] || 0) > 0" class="reaction-count">
+                      {{ messageReactions[message.id][emoji] }}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Message Input -->
-        <div class="message-input-container">
+        <div class="message-input-container" @dragover.prevent @drop.prevent="handleMessageDrop">
           <!-- Mention Autocomplete Menu -->
           <div v-if="showMentionMenu" class="mention-menu">
             <div class="mention-header">Mention someone</div>
             <div
-              v-for="member in filteredMentions"
+              v-for="(member, index) in filteredMentions"
               :key="member.id"
               class="mention-item"
+              :class="{ active: mentionActiveIndex === index }"
               @click="insertMention(member)"
+              @mouseenter="mentionActiveIndex = index"
             >
               <span class="mention-avatar" :class="{ 'mention-ai': member.isAI }">
                 <AppIcon v-if="member.isAI" name="bot" size="xs" />
@@ -486,14 +869,46 @@ watch(messages, () => {
             <div v-if="filteredMentions.length === 0" class="mention-empty">No matches found</div>
           </div>
 
+          <!-- Slash Command Menu -->
+          <div v-if="showCommandMenu" class="command-menu">
+            <div class="mention-header">Slash commands</div>
+            <div
+              v-for="(command, index) in filteredCommands"
+              :key="command.id"
+              class="mention-item"
+              :class="{ active: commandActiveIndex === index }"
+              @click="selectCommand(command)"
+              @mouseenter="commandActiveIndex = index"
+            >
+              <span class="mention-avatar">
+                <AppIcon name="sparkle" size="xs" />
+              </span>
+              <div class="command-copy">
+                <span class="mention-name">/{{ command.id }}</span>
+                <span class="command-description">{{ command.description }}</span>
+              </div>
+            </div>
+            <div v-if="filteredCommands.length === 0" class="mention-empty">No commands found</div>
+          </div>
+
+          <div v-if="replyingTo" class="replying-pill glass-panel">
+            <div class="replying-label">Replying to</div>
+            <div class="replying-text">
+              {{ replyingTo.sender_name || 'Message' }} — {{ replyingTo.content }}
+            </div>
+            <button class="chip-btn" @click="cancelReply">Cancel</button>
+          </div>
+
           <div class="message-input-wrapper glass-panel">
             <input
               v-model="messageInput"
               type="text"
               class="message-input"
               placeholder="Type @ to mention, / for commands..."
-              @keyup.enter="sendMessage"
+              @keyup.enter="(showMentionMenu || showCommandMenu) ? null : sendMessage()"
               @input="handleMessageInput"
+              @keydown="handleKeyDown"
+              ref="messageInputField"
               :disabled="sending"
               maxlength="2000"
             />
@@ -506,25 +921,12 @@ watch(messages, () => {
               <AppIcon v-else name="send" size="md" />
             </button>
           </div>
-          <div class="input-hints">
-            <span class="hint">@mention</span>
-            <span class="hint">/help</span>
-            <span class="hint">/summarize</span>
-            <span class="hint">/tasks</span>
-          </div>
         </div>
       </div>
 
       <!-- Side Panel -->
       <div class="side-panel">
         <div class="panel-tabs">
-          <button
-            class="panel-tab"
-            :class="{ active: activePanel === 'chat' }"
-            @click="activePanel = 'chat'"
-          >
-            Chat
-          </button>
           <button
             class="panel-tab"
             :class="{ active: activePanel === 'tasks' }"
@@ -559,31 +961,88 @@ watch(messages, () => {
                   <span class="column-title">To Do</span>
                   <span class="column-count">{{ todoTasks.length }}</span>
                 </div>
-                <div class="task-list">
-                  <div v-for="task in todoTasks" :key="task.id" class="task-card">
+                <div class="task-list" @dragover.prevent @drop="handleTaskDrop('todo')">
+                  <div
+                    v-for="task in todoTasks"
+                    :key="task.id"
+                    class="task-card"
+                    draggable="true"
+                    @dragstart="handleTaskDragStart(task)"
+                  >
                     <div class="task-card-header">
-                      <span class="task-title">{{ task.title }}</span>
+                      <div class="task-title-wrap">
+                        <input
+                          v-if="editingTaskId === task.id"
+                          v-model="editingTaskTitle"
+                          class="task-edit-input"
+                          @keyup.enter="saveTaskEdit(task)"
+                        />
+                        <span v-else class="task-title">{{ task.title }}</span>
+                      </div>
+                      <div class="task-card-actions">
+                        <button
+                          v-if="editingTaskId === task.id"
+                          class="chip-btn"
+                          @click="saveTaskEdit(task)"
+                        >
+                          Save
+                        </button>
+                        <button
+                          v-if="editingTaskId === task.id"
+                          class="chip-btn"
+                          @click="cancelTaskEdit"
+                        >
+                          Cancel
+                        </button>
+                        <button v-else class="chip-btn" @click="startEditingTask(task)">Edit</button>
+                        <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
+                      </div>
                     </div>
                     <div class="task-card-footer">
-                      <div class="task-assignee" v-if="task.assignee_name">
+                      <div class="task-assignee">
                         <span class="assignee-avatar">
                           {{
                             task.assignee_name === 'AI'
                               ? '🤖'
-                              : getSenderInitials(task.assignee_name)
+                              : task.assignee_name
+                                ? getSenderInitials(task.assignee_name)
+                                : '?'
                           }}
                         </span>
-                        <span class="assignee-name">{{ task.assignee_name }}</span>
+                        <div class="assignee-control">
+                          <label class="assignee-label">Assignee</label>
+                          <select
+                            class="task-status-select assignee-select"
+                            :value="
+                              task.assignee_id ||
+                              (task.assignee_name === 'AI' ? 'ai' : '') ||
+                              ''
+                            "
+                            @change="updateTaskAssignee(task, $event.target.value || null)"
+                          >
+                            <option value="">Unassigned</option>
+                            <option
+                              v-for="member in assignableMembers"
+                              :key="member.id"
+                              :value="member.id"
+                            >
+                              {{ member.username }}
+                            </option>
+                          </select>
+                        </div>
                       </div>
-                      <select
-                        class="task-status-select"
-                        :value="task.status"
-                        @change="updateTaskStatus(task, $event.target.value)"
-                      >
-                        <option value="todo">To Do</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="done">Done</option>
-                      </select>
+                      <div class="task-controls">
+                        <label class="assignee-label">Status</label>
+                        <select
+                          class="task-status-select"
+                          :value="task.status"
+                          @change="updateTaskStatus(task, $event.target.value)"
+                        >
+                          <option value="todo">To Do</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="done">Done</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <div v-if="todoTasks.length === 0" class="empty-column">No tasks</div>
@@ -596,31 +1055,88 @@ watch(messages, () => {
                   <span class="column-title">In Progress</span>
                   <span class="column-count">{{ inProgressTasks.length }}</span>
                 </div>
-                <div class="task-list">
-                  <div v-for="task in inProgressTasks" :key="task.id" class="task-card in-progress">
+                <div class="task-list" @dragover.prevent @drop="handleTaskDrop('in_progress')">
+                  <div
+                    v-for="task in inProgressTasks"
+                    :key="task.id"
+                    class="task-card in-progress"
+                    draggable="true"
+                    @dragstart="handleTaskDragStart(task)"
+                  >
                     <div class="task-card-header">
-                      <span class="task-title">{{ task.title }}</span>
+                      <div class="task-title-wrap">
+                        <input
+                          v-if="editingTaskId === task.id"
+                          v-model="editingTaskTitle"
+                          class="task-edit-input"
+                          @keyup.enter="saveTaskEdit(task)"
+                        />
+                        <span v-else class="task-title">{{ task.title }}</span>
+                      </div>
+                      <div class="task-card-actions">
+                        <button
+                          v-if="editingTaskId === task.id"
+                          class="chip-btn"
+                          @click="saveTaskEdit(task)"
+                        >
+                          Save
+                        </button>
+                        <button
+                          v-if="editingTaskId === task.id"
+                          class="chip-btn"
+                          @click="cancelTaskEdit"
+                        >
+                          Cancel
+                        </button>
+                        <button v-else class="chip-btn" @click="startEditingTask(task)">Edit</button>
+                        <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
+                      </div>
                     </div>
                     <div class="task-card-footer">
-                      <div class="task-assignee" v-if="task.assignee_name">
+                      <div class="task-assignee">
                         <span class="assignee-avatar">
                           {{
                             task.assignee_name === 'AI'
                               ? '🤖'
-                              : getSenderInitials(task.assignee_name)
+                              : task.assignee_name
+                                ? getSenderInitials(task.assignee_name)
+                                : '?'
                           }}
                         </span>
-                        <span class="assignee-name">{{ task.assignee_name }}</span>
+                        <div class="assignee-control">
+                          <label class="assignee-label">Assignee</label>
+                          <select
+                            class="task-status-select assignee-select"
+                            :value="
+                              task.assignee_id ||
+                              (task.assignee_name === 'AI' ? 'ai' : '') ||
+                              ''
+                            "
+                            @change="updateTaskAssignee(task, $event.target.value || null)"
+                          >
+                            <option value="">Unassigned</option>
+                            <option
+                              v-for="member in assignableMembers"
+                              :key="member.id"
+                              :value="member.id"
+                            >
+                              {{ member.username }}
+                            </option>
+                          </select>
+                        </div>
                       </div>
-                      <select
-                        class="task-status-select"
-                        :value="task.status"
-                        @change="updateTaskStatus(task, $event.target.value)"
-                      >
-                        <option value="todo">To Do</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="done">Done</option>
-                      </select>
+                      <div class="task-controls">
+                        <label class="assignee-label">Status</label>
+                        <select
+                          class="task-status-select"
+                          :value="task.status"
+                          @change="updateTaskStatus(task, $event.target.value)"
+                        >
+                          <option value="todo">To Do</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="done">Done</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <div v-if="inProgressTasks.length === 0" class="empty-column">No tasks</div>
@@ -633,31 +1149,88 @@ watch(messages, () => {
                   <span class="column-title">Done</span>
                   <span class="column-count">{{ completedTasks.length }}</span>
                 </div>
-                <div class="task-list">
-                  <div v-for="task in completedTasks" :key="task.id" class="task-card done">
+                <div class="task-list" @dragover.prevent @drop="handleTaskDrop('done')">
+                  <div
+                    v-for="task in completedTasks"
+                    :key="task.id"
+                    class="task-card done"
+                    draggable="true"
+                    @dragstart="handleTaskDragStart(task)"
+                  >
                     <div class="task-card-header">
-                      <span class="task-title">{{ task.title }}</span>
+                      <div class="task-title-wrap">
+                        <input
+                          v-if="editingTaskId === task.id"
+                          v-model="editingTaskTitle"
+                          class="task-edit-input"
+                          @keyup.enter="saveTaskEdit(task)"
+                        />
+                        <span v-else class="task-title">{{ task.title }}</span>
+                      </div>
+                      <div class="task-card-actions">
+                        <button
+                          v-if="editingTaskId === task.id"
+                          class="chip-btn"
+                          @click="saveTaskEdit(task)"
+                        >
+                          Save
+                        </button>
+                        <button
+                          v-if="editingTaskId === task.id"
+                          class="chip-btn"
+                          @click="cancelTaskEdit"
+                        >
+                          Cancel
+                        </button>
+                        <button v-else class="chip-btn" @click="startEditingTask(task)">Edit</button>
+                        <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
+                      </div>
                     </div>
                     <div class="task-card-footer">
-                      <div class="task-assignee" v-if="task.assignee_name">
+                      <div class="task-assignee">
                         <span class="assignee-avatar">
                           {{
                             task.assignee_name === 'AI'
                               ? '🤖'
-                              : getSenderInitials(task.assignee_name)
+                              : task.assignee_name
+                                ? getSenderInitials(task.assignee_name)
+                                : '?'
                           }}
                         </span>
-                        <span class="assignee-name">{{ task.assignee_name }}</span>
+                        <div class="assignee-control">
+                          <label class="assignee-label">Assignee</label>
+                          <select
+                            class="task-status-select assignee-select"
+                            :value="
+                              task.assignee_id ||
+                              (task.assignee_name === 'AI' ? 'ai' : '') ||
+                              ''
+                            "
+                            @change="updateTaskAssignee(task, $event.target.value || null)"
+                          >
+                            <option value="">Unassigned</option>
+                            <option
+                              v-for="member in assignableMembers"
+                              :key="member.id"
+                              :value="member.id"
+                            >
+                              {{ member.username }}
+                            </option>
+                          </select>
+                        </div>
                       </div>
-                      <select
-                        class="task-status-select"
-                        :value="task.status"
-                        @change="updateTaskStatus(task, $event.target.value)"
-                      >
-                        <option value="todo">To Do</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="done">Done</option>
-                      </select>
+                      <div class="task-controls">
+                        <label class="assignee-label">Status</label>
+                        <select
+                          class="task-status-select"
+                          :value="task.status"
+                          @change="updateTaskStatus(task, $event.target.value)"
+                        >
+                          <option value="todo">To Do</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="done">Done</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <div v-if="completedTasks.length === 0" class="empty-column">
@@ -908,6 +1481,8 @@ watch(messages, () => {
   animation: messageSlideIn 0.3s ease;
   opacity: 0;
   animation-fill-mode: forwards;
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
 }
 
 @keyframes messageSlideIn {
@@ -952,6 +1527,12 @@ watch(messages, () => {
 
 .message:hover .message-avatar {
   transform: scale(1.05);
+}
+
+.message.active {
+  background: var(--surface);
+  border: 1px solid var(--primary-muted);
+  box-shadow: var(--shadow-sm);
 }
 
 .message-human .message-avatar {
@@ -1027,6 +1608,75 @@ watch(messages, () => {
 .message-human .message-body {
   background: linear-gradient(135deg, rgba(51, 65, 85, 0.05), rgba(51, 65, 85, 0.02));
   border-color: rgba(51, 65, 85, 0.2);
+}
+
+.reply-preview {
+  border-left: 3px solid var(--primary);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+}
+
+.reply-label {
+  font-weight: 700;
+  margin-right: var(--space-2);
+  color: var(--primary);
+}
+
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.message:hover .message-actions,
+.message.active .message-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.reactions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reaction-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  padding: 4px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.reaction-btn:hover {
+  background: var(--primary-muted);
+  border-color: var(--primary-muted);
+}
+
+.reaction-count {
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 /* Message Input - using the enhanced version at the bottom */
@@ -1440,9 +2090,11 @@ watch(messages, () => {
 }
 
 .task-column {
-  background: var(--surface);
-  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--surface), var(--surface-elevated));
+  border-radius: var(--radius-lg);
   padding: var(--space-3);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .column-header {
@@ -1472,10 +2124,11 @@ watch(messages, () => {
 .task-card {
   background: var(--surface-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-3);
   margin-bottom: var(--space-2);
   transition: all 0.2s ease;
+  box-shadow: var(--shadow-xs);
 }
 
 .task-card:hover {
@@ -1486,11 +2139,13 @@ watch(messages, () => {
 
 .task-card.in-progress {
   border-left: 3px solid var(--warning);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.06), var(--surface-elevated));
 }
 
 .task-card.done {
   opacity: 0.7;
   border-left: 3px solid var(--success);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.06), var(--surface-elevated));
 }
 
 .task-card.done .task-title {
@@ -1504,9 +2159,10 @@ watch(messages, () => {
 
 .task-card-footer {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .task-assignee {
@@ -1545,6 +2201,83 @@ watch(messages, () => {
 .task-status-select:focus {
   outline: none;
   border-color: var(--primary);
+}
+
+.task-card-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.chip-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.chip-btn:hover {
+  background: var(--primary-muted);
+  color: var(--primary);
+  border-color: var(--primary-muted);
+  box-shadow: var(--shadow-xs);
+}
+
+.task-title-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.task-edit-input {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.assignee-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assignee-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.assignee-select {
+  min-width: 140px;
+}
+
+.task-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.task-list {
+  min-height: 60px;
+  padding-bottom: var(--space-2);
+}
+
+.task-list:empty::after {
+  content: 'Drop tasks here';
+  display: block;
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
 }
 
 .empty-column {
@@ -1591,6 +2324,11 @@ watch(messages, () => {
   background: var(--surface);
 }
 
+.mention-item.active {
+  background: var(--surface);
+  border-left: 3px solid var(--primary);
+}
+
 .mention-avatar {
   width: 28px;
   height: 28px;
@@ -1631,27 +2369,30 @@ watch(messages, () => {
   font-size: 0.85rem;
 }
 
-/* Input Hints */
-.input-hints {
+.command-menu {
+  position: absolute;
+  bottom: 80px;
+  left: var(--space-6);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 100;
+  min-width: 240px;
+  animation: slideInUp 0.2s ease;
+}
+
+.command-copy {
   display: flex;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.hint {
-  font-size: 0.7rem;
+.command-description {
+  font-size: 0.75rem;
   color: var(--text-muted);
-  background: var(--surface);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.hint:hover {
-  background: var(--primary-muted);
-  color: var(--primary);
 }
 
 /* Form Group */
@@ -1673,5 +2414,33 @@ watch(messages, () => {
   background: var(--surface-elevated);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.replying-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+}
+
+.replying-label {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.replying-text {
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messages-container:focus {
+  outline: 2px solid var(--primary-muted);
 }
 </style>
