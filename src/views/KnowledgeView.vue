@@ -494,5 +494,9 @@ const formatDate = (dateString) => {
   .knowledge-grid {
     grid-template-columns: 1fr;
   }
+
+  .card-actions {
+    opacity: 1;
+  }
 }
 </style>

@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
 const sidebarCollapsed = ref(false)
 const user = ref(null)
+const mobileMenuOpen = ref(false)
 
 const currentRouteName = computed(() => {
   return route.name || 'home'
@@ -17,7 +19,11 @@ const isAuthPage = computed(() => {
 })
 
 const toggleSidebar = () => {
-  sidebarCollapsed.value = !sidebarCollapsed.value
+  if (window.innerWidth <= 768) {
+    mobileMenuOpen.value = !mobileMenuOpen.value
+  } else {
+    sidebarCollapsed.value = !sidebarCollapsed.value
+  }
 }
 
 // Load user from localStorage
@@ -26,7 +32,7 @@ const loadUser = () => {
   if (storedUser) {
     try {
       user.value = JSON.parse(storedUser)
-    } catch (e) {
+    } catch {
       user.value = null
     }
   }
@@ -42,11 +48,16 @@ const logout = () => {
 
 onMounted(() => {
   loadUser()
+  // Responsive sidebar handling
+  if (window.innerWidth <= 768) {
+    sidebarCollapsed.value = true
+  }
 })
 
-// Watch for route changes to reload user
+// Watch for route changes to reload user and close mobile menu
 router.afterEach(() => {
   loadUser()
+  mobileMenuOpen.value = false
 })
 </script>
 
@@ -58,19 +69,29 @@ router.afterEach(() => {
 
   <!-- Main app with sidebar -->
   <div v-else class="app-container">
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" @click="toggleSidebar">
+      <AppIcon :name="mobileMenuOpen ? 'x' : 'menu'" size="md" />
+    </button>
+
+    <!-- Overlay for mobile -->
+    <div v-if="mobileMenuOpen" class="mobile-overlay" @click="mobileMenuOpen = false"></div>
+
     <!-- Sidebar -->
-    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+    <aside
+      class="sidebar"
+      :class="{
+        collapsed: sidebarCollapsed && !mobileMenuOpen,
+        'mobile-open': mobileMenuOpen,
+      }"
+    >
       <div class="sidebar-header">
         <div class="logo">
           <div class="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="8" height="8" rx="2" />
-              <rect x="13" y="4" width="8" height="5" rx="2" />
-              <rect x="13" y="11" width="8" height="9" rx="2" />
-            </svg>
+            <AppIcon name="monitor" size="md" />
           </div>
           <transition name="slide-fade">
-            <span v-if="!sidebarCollapsed" class="logo-text">AI Rooms</span>
+            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="logo-text">AI Rooms</span>
           </transition>
         </div>
       </div>
@@ -78,26 +99,19 @@ router.afterEach(() => {
       <nav class="sidebar-nav">
         <RouterLink to="/" class="nav-item" :class="{ active: currentRouteName === 'home' }">
           <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <rect x="3" y="4" width="18" height="14" rx="2" />
-              <path d="M7 9h10" />
-              <path d="M7 13h6" />
-            </svg>
+            <AppIcon name="home" size="md" />
           </span>
           <transition name="slide-fade">
-            <span v-if="!sidebarCollapsed" class="nav-label">Rooms</span>
+            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">Rooms</span>
           </transition>
         </RouterLink>
 
         <RouterLink to="/tasks" class="nav-item" :class="{ active: currentRouteName === 'tasks' }">
           <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg>
+            <AppIcon name="check-circle" size="md" />
           </span>
           <transition name="slide-fade">
-            <span v-if="!sidebarCollapsed" class="nav-label">My Tasks</span>
+            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">My Tasks</span>
           </transition>
         </RouterLink>
 
@@ -107,15 +121,10 @@ router.afterEach(() => {
           :class="{ active: currentRouteName === 'knowledge' }"
         >
           <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              <path d="M8 7h8" />
-              <path d="M8 11h6" />
-            </svg>
+            <AppIcon name="book" size="md" />
           </span>
           <transition name="slide-fade">
-            <span v-if="!sidebarCollapsed" class="nav-label">Knowledge</span>
+            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">Knowledge</span>
           </transition>
         </RouterLink>
 
@@ -125,15 +134,23 @@ router.afterEach(() => {
           :class="{ active: currentRouteName === 'settings' }"
         >
           <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-              />
-            </svg>
+            <AppIcon name="settings" size="md" />
           </span>
           <transition name="slide-fade">
-            <span v-if="!sidebarCollapsed" class="nav-label">Settings</span>
+            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">Settings</span>
+          </transition>
+        </RouterLink>
+
+        <RouterLink
+          to="/about"
+          class="nav-item"
+          :class="{ active: currentRouteName === 'about' }"
+        >
+          <span class="nav-icon">
+            <AppIcon name="info" size="md" />
+          </span>
+          <transition name="slide-fade">
+            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">About</span>
           </transition>
         </RouterLink>
       </nav>
@@ -142,13 +159,10 @@ router.afterEach(() => {
         <!-- Show user info if logged in -->
         <div v-if="user" class="user-profile">
           <div class="user-avatar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
+            <AppIcon name="user" size="sm" />
           </div>
           <transition name="slide-fade">
-            <div v-if="!sidebarCollapsed" class="user-info">
+            <div v-if="!sidebarCollapsed || mobileMenuOpen" class="user-info">
               <div class="user-name">{{ user.username }}</div>
               <div class="user-status">
                 <span class="status-dot status-active"></span>
@@ -159,19 +173,13 @@ router.afterEach(() => {
             </div>
           </transition>
           <transition name="slide-fade">
-            <button v-if="!sidebarCollapsed" class="logout-btn" @click="logout" title="Logout">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                width="18"
-                height="18"
-              >
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
+            <button
+              v-if="!sidebarCollapsed || mobileMenuOpen"
+              class="logout-btn"
+              @click="logout"
+              title="Logout"
+            >
+              <AppIcon name="logout" size="sm" />
             </button>
           </transition>
         </div>
@@ -179,38 +187,20 @@ router.afterEach(() => {
         <!-- Show login link if not logged in -->
         <div v-else class="login-prompt">
           <RouterLink to="/login" class="login-link">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              width="20"
-              height="20"
-            >
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-              <polyline points="10 17 15 12 10 7" />
-              <line x1="15" y1="12" x2="3" y2="12" />
-            </svg>
+            <AppIcon name="login" size="md" />
             <transition name="slide-fade">
-              <span v-if="!sidebarCollapsed">Sign In</span>
+              <span v-if="!sidebarCollapsed || mobileMenuOpen">Sign In</span>
             </transition>
           </RouterLink>
         </div>
 
         <button
+          v-if="!mobileMenuOpen"
           class="collapse-btn"
           @click="toggleSidebar"
           :title="sidebarCollapsed ? 'Expand' : 'Collapse'"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            :class="{ rotated: sidebarCollapsed }"
-          >
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <AppIcon name="chevron-right" size="sm" :class="{ rotated: !sidebarCollapsed }" />
         </button>
       </div>
     </aside>
@@ -235,6 +225,30 @@ router.afterEach(() => {
   background: var(--background);
 }
 
+/* Mobile Menu Button */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1001;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+}
+
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
 /* Sidebar */
 .sidebar {
   width: 260px;
@@ -246,6 +260,7 @@ router.afterEach(() => {
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   box-shadow: var(--shadow-sm);
+  z-index: 1000;
 }
 
 .sidebar.collapsed {
@@ -267,7 +282,7 @@ router.afterEach(() => {
   width: 40px;
   height: 40px;
   background: linear-gradient(135deg, var(--primary), var(--primary-soft));
-  border-radius: var(--radius-xl);
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -276,6 +291,7 @@ router.afterEach(() => {
   transition:
     transform 0.3s ease,
     box-shadow 0.3s ease;
+  color: white;
 }
 
 .logo-icon:hover {
@@ -283,19 +299,10 @@ router.afterEach(() => {
   box-shadow: 0 12px 28px rgba(37, 99, 235, 0.4);
 }
 
-.logo-icon svg {
-  width: 20px;
-  height: 20px;
-  color: white;
-}
-
 .logo-text {
   font-size: 1.25rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--primary);
 }
 
 /* Navigation */
@@ -358,11 +365,6 @@ router.afterEach(() => {
   flex-shrink: 0;
 }
 
-.nav-icon svg {
-  width: 20px;
-  height: 20px;
-}
-
 .nav-label {
   font-size: 0.9rem;
   font-weight: 500;
@@ -392,11 +394,6 @@ router.afterEach(() => {
   justify-content: center;
   flex-shrink: 0;
   border: 1px solid var(--border);
-}
-
-.user-avatar svg {
-  width: 18px;
-  height: 18px;
   color: var(--text-secondary);
 }
 
@@ -419,6 +416,13 @@ router.afterEach(() => {
   align-items: center;
   gap: var(--space-2);
   margin-top: 2px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--success);
+  border-radius: 50%;
 }
 
 .status-text {
@@ -453,7 +457,7 @@ router.afterEach(() => {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   color: white;
   border-radius: var(--radius-lg);
   text-decoration: none;
@@ -464,7 +468,7 @@ router.afterEach(() => {
 
 .login-link:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-md);
 }
 
 .auth-wrapper {
@@ -491,13 +495,7 @@ router.afterEach(() => {
   border-color: var(--border-strong);
 }
 
-.collapse-btn svg {
-  width: 18px;
-  height: 18px;
-  transition: transform 0.3s ease;
-}
-
-.collapse-btn svg.rotated {
+.rotated {
   transform: rotate(180deg);
 }
 
@@ -552,21 +550,35 @@ router.afterEach(() => {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .mobile-overlay {
+    display: block;
+  }
+
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     z-index: 1000;
+    transform: translateX(-100%);
+    width: 260px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar.mobile-open {
     transform: translateX(0);
   }
 
   .sidebar.collapsed {
-    transform: translateX(-100%);
-    width: 260px;
+    width: 260px; /* Don't collapse on mobile, just hide */
   }
 
   .main-content {
     margin-left: 0;
+    padding-top: 4rem; /* Space for mobile menu btn */
   }
 }
 </style>
