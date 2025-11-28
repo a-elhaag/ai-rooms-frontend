@@ -5,6 +5,7 @@ import roomService from '@/services/roomService'
 import taskService from '@/services/taskService'
 import knowledgeService from '@/services/knowledgeService'
 import aiService from '@/services/aiService'
+import documentService from '@/services/documentService'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
 const route = useRoute()
@@ -15,6 +16,7 @@ const messages = ref([])
 const tasks = ref([])
 const goals = ref([])
 const knowledgeBase = ref(null)
+const documents = ref([])
 const members = ref([])
 const loading = ref(true)
 const error = ref(null)
@@ -22,7 +24,7 @@ const messageInput = ref('')
 const messageInputField = ref(null)
 const sending = ref(false)
 const messagesContainer = ref(null)
-const activePanel = ref('tasks') // tasks, knowledge
+const activePanel = ref('tasks') // tasks, knowledge, documents
 const replyingTo = ref(null)
 const activeMessageIndex = ref(-1)
 const draggedMessageId = ref(null)
@@ -36,6 +38,35 @@ const newTaskTitle = ref('')
 const newTaskAssignee = ref('')
 const editingTaskId = ref(null)
 const editingTaskTitle = ref('')
+
+// KB Editing
+const editingKBSummary = ref(false)
+const kbSummaryInput = ref('')
+const newDecision = ref('')
+const newLink = ref({ title: '', url: '' })
+const newResource = ref({ title: '', url: '', description: '' })
+const showAddDecision = ref(false)
+const showAddLink = ref(false)
+const showAddResource = ref(false)
+
+// Document Upload
+const isDraggingFile = ref(false)
+const uploadingFile = ref(false)
+const uploadProgress = ref(0)
+const documentQuestion = ref('')
+const askingDocument = ref(false)
+const showDocUpload = ref(false)
+const uploadingDoc = ref(false)
+const docUploadProgress = ref(0)
+const docSearchQuery = ref('')
+const docSearchResults = ref([])
+
+// Typing Indicators
+const typingUsers = ref({})
+const typingTimeout = ref(null)
+
+// Online Presence
+const onlineUserIds = ref([])
 
 // Mention autocomplete
 const showMentionMenu = ref(false)
@@ -52,6 +83,13 @@ const commandActiveIndex = ref(0)
 const reactionOptions = ['👍', '🎉', '❤️', '👀', '😂', '🤪']
 const messageReactions = ref({})
 const myReactions = ref({})
+
+// Smart Suggestions
+const smartSuggestions = ref([])
+const showSmartSuggestions = ref(false)
+
+// Notifications
+const notificationsEnabled = ref(false)
 
 // WebSocket connection
 let ws = null
@@ -70,6 +108,16 @@ const assignableMembers = computed(() => {
   return list
 })
 
+// Online members with presence info
+const onlineMembers = computed(() => {
+  return members.value.map((m) => ({
+    ...m,
+    isOnline: onlineUserIds.value.includes(m.user_id),
+  }))
+})
+
+const onlineCount = computed(() => onlineUserIds.value.length)
+
 const slashCommands = [
   {
     id: 'help',
@@ -83,6 +131,20 @@ const slashCommands = [
     label: 'Summarize chat',
     description: 'Ask AI to summarize the recent conversation',
     action: 'summarize',
+  },
+  {
+    id: 'ask',
+    label: 'Ask Documents',
+    description: 'Ask AI a question about uploaded documents',
+    action: 'insert',
+    text: '/ask ',
+  },
+  {
+    id: 'docs',
+    label: 'List Documents',
+    description: 'Show all uploaded documents',
+    action: 'insert',
+    text: '/docs ',
   },
   {
     id: 'tasks',
@@ -136,6 +198,9 @@ const fetchRoom = async () => {
 
     // Fetch knowledge base
     await fetchKnowledgeBase()
+
+    // Fetch documents
+    await fetchDocuments()
 
     // Fetch room members
     await fetchMembers()
@@ -191,6 +256,291 @@ const fetchKnowledgeBase = async () => {
     knowledgeBase.value = response
   } catch (err) {
     console.error('Failed to fetch knowledge base:', err)
+  }
+}
+
+// Fetch documents
+const fetchDocuments = async () => {
+  try {
+    const response = await documentService.getRoomDocuments(roomId.value)
+    documents.value = response || []
+  } catch (err) {
+    console.error('Failed to fetch documents:', err)
+  }
+}
+
+// Document Upload Methods
+const handleFileDragOver = (e) => {
+  e.preventDefault()
+  isDraggingFile.value = true
+}
+
+const handleFileDragLeave = () => {
+  isDraggingFile.value = false
+}
+
+const handleFileDrop = async (e) => {
+  e.preventDefault()
+  isDraggingFile.value = false
+
+  const files = e.dataTransfer?.files
+  if (files && files.length > 0) {
+    await uploadDocument(files[0])
+  }
+}
+
+const handleFileSelect = async (e) => {
+  const files = e.target?.files
+  if (files && files.length > 0) {
+    await uploadDocument(files[0])
+  }
+}
+
+const uploadDocument = async (file) => {
+  // Validate file type
+  const allowedTypes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-powerpoint',
+  ]
+
+  if (!allowedTypes.includes(file.type)) {
+    alert('Please upload a PDF or PowerPoint file.')
+    return
+  }
+
+  // Check file size (20MB max)
+  if (file.size > 20 * 1024 * 1024) {
+    alert('File too large. Maximum size is 20MB.')
+    return
+  }
+
+  try {
+    uploadingFile.value = true
+    uploadProgress.value = 0
+
+    const doc = await documentService.uploadDocument(roomId.value, file, (progress) => {
+      uploadProgress.value = progress
+    })
+
+    documents.value.unshift(doc)
+    uploadProgress.value = 100
+  } catch (err) {
+    console.error('Failed to upload document:', err)
+    alert('Failed to upload document. Please try again.')
+  } finally {
+    uploadingFile.value = false
+    uploadProgress.value = 0
+  }
+}
+
+const deleteDocument = async (docId) => {
+  if (!confirm('Are you sure you want to delete this document?')) return
+
+  try {
+    await documentService.deleteDocument(roomId.value, docId)
+    documents.value = documents.value.filter((d) => d.id !== docId)
+  } catch (err) {
+    console.error('Failed to delete document:', err)
+  }
+}
+
+const askAboutDocuments = async () => {
+  if (!documentQuestion.value.trim()) return
+
+  try {
+    askingDocument.value = true
+    const result = await documentService.askDocument(roomId.value, documentQuestion.value.trim())
+
+    // Add AI response to chat
+    messages.value.push({
+      id: `doc-qa-${Date.now()}`,
+      sender_type: 'ai',
+      sender_name: 'AI Assistant',
+      content: `📚 **Document Q&A:**\n\n**Q:** ${result.question}\n\n**A:** ${result.answer}`,
+      created_at: new Date().toISOString(),
+    })
+
+    documentQuestion.value = ''
+    nextTick(() => scrollToBottom())
+  } catch (err) {
+    console.error('Failed to ask about documents:', err)
+    alert('Failed to process your question.')
+  } finally {
+    askingDocument.value = false
+  }
+}
+
+// Documents Panel Methods
+const handleDocumentUpload = async (event) => {
+  const file = event.target?.files?.[0]
+  if (!file) return
+
+  await uploadDocumentWithProgress(file)
+}
+
+const handleDocDrop = async (event) => {
+  const file = event.dataTransfer?.files?.[0]
+  if (!file) return
+
+  await uploadDocumentWithProgress(file)
+}
+
+const uploadDocumentWithProgress = async (file) => {
+  const allowedTypes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ]
+  if (!allowedTypes.includes(file.type)) {
+    alert('Please upload a PDF or PowerPoint file.')
+    return
+  }
+
+  if (file.size > 20 * 1024 * 1024) {
+    alert('File too large. Maximum size is 20MB.')
+    return
+  }
+
+  try {
+    uploadingDoc.value = true
+    docUploadProgress.value = 0
+
+    const doc = await documentService.uploadDocument(roomId.value, file, (progress) => {
+      docUploadProgress.value = progress
+    })
+
+    documents.value.unshift(doc)
+    showDocUpload.value = false
+  } catch (err) {
+    console.error('Failed to upload document:', err)
+    alert('Failed to upload document.')
+  } finally {
+    uploadingDoc.value = false
+    docUploadProgress.value = 0
+  }
+}
+
+const searchDocuments = async () => {
+  if (!docSearchQuery.value.trim()) {
+    docSearchResults.value = []
+    return
+  }
+
+  try {
+    const results = await documentService.searchDocuments(roomId.value, docSearchQuery.value.trim())
+    docSearchResults.value = results || []
+  } catch (err) {
+    console.error('Failed to search documents:', err)
+  }
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let i = 0
+  while (bytes >= 1024 && i < units.length - 1) {
+    bytes /= 1024
+    i++
+  }
+  return `${bytes.toFixed(1)} ${units[i]}`
+}
+
+// Typing indicator methods
+const sendTypingIndicator = () => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(
+      JSON.stringify({
+        type: 'typing',
+        is_typing: true,
+      }),
+    )
+
+    // Clear any existing timeout
+    if (typingTimeout.value) {
+      clearTimeout(typingTimeout.value)
+    }
+
+    // Set timeout to stop typing indicator
+    typingTimeout.value = setTimeout(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: 'typing',
+            is_typing: false,
+          }),
+        )
+      }
+    }, 3000)
+  }
+}
+
+const typingUsersDisplay = computed(() => {
+  const users = Object.values(typingUsers.value)
+  if (users.length === 0) return ''
+  if (users.length === 1) return `${users[0]} is typing...`
+  if (users.length === 2) return `${users[0]} and ${users[1]} are typing...`
+  return `${users.length} people are typing...`
+})
+
+// KB Editing Methods
+const startEditKBSummary = () => {
+  kbSummaryInput.value = knowledgeBase.value?.summary || ''
+  editingKBSummary.value = true
+}
+
+const saveKBSummary = async () => {
+  try {
+    await knowledgeService.updateRoomKB(roomId.value, { summary: kbSummaryInput.value })
+    if (knowledgeBase.value) {
+      knowledgeBase.value.summary = kbSummaryInput.value
+    } else {
+      knowledgeBase.value = { summary: kbSummaryInput.value }
+    }
+    editingKBSummary.value = false
+  } catch (err) {
+    console.error('Failed to update KB summary:', err)
+  }
+}
+
+const addKBDecision = async () => {
+  if (!newDecision.value.trim()) return
+  try {
+    await knowledgeService.addDecision(roomId.value, newDecision.value.trim())
+    if (!knowledgeBase.value) knowledgeBase.value = {}
+    if (!knowledgeBase.value.key_decisions) knowledgeBase.value.key_decisions = []
+    knowledgeBase.value.key_decisions.push(newDecision.value.trim())
+    newDecision.value = ''
+    showAddDecision.value = false
+  } catch (err) {
+    console.error('Failed to add decision:', err)
+  }
+}
+
+const addKBLink = async () => {
+  if (!newLink.value.title.trim() || !newLink.value.url.trim()) return
+  try {
+    await knowledgeService.addLink(roomId.value, { ...newLink.value })
+    if (!knowledgeBase.value) knowledgeBase.value = {}
+    if (!knowledgeBase.value.important_links) knowledgeBase.value.important_links = []
+    knowledgeBase.value.important_links.push({ ...newLink.value })
+    newLink.value = { title: '', url: '' }
+    showAddLink.value = false
+  } catch (err) {
+    console.error('Failed to add link:', err)
+  }
+}
+
+const addKBResource = async () => {
+  if (!newResource.value.title.trim() || !newResource.value.url.trim()) return
+  try {
+    await knowledgeService.addResource(roomId.value, { ...newResource.value })
+    if (!knowledgeBase.value) knowledgeBase.value = {}
+    if (!knowledgeBase.value.resources) knowledgeBase.value.resources = []
+    knowledgeBase.value.resources.push({ ...newResource.value })
+    newResource.value = { title: '', url: '', description: '' }
+    showAddResource.value = false
+  } catch (err) {
+    console.error('Failed to add resource:', err)
   }
 }
 
@@ -622,7 +972,103 @@ const sendMessage = async () => {
     messageInput.value = content // Restore message
   } finally {
     sending.value = false
+    showSmartSuggestions.value = false
+    smartSuggestions.value = []
   }
+}
+
+// Smart Suggestions
+const useSuggestion = (suggestion) => {
+  messageInput.value = suggestion
+  showSmartSuggestions.value = false
+  smartSuggestions.value = []
+  messageInputField.value?.focus()
+}
+
+const generateSmartSuggestions = () => {
+  // Get last few messages for context
+  const recentMessages = messages.value.slice(-5)
+  if (recentMessages.length === 0) return
+
+  const lastMessage = recentMessages[recentMessages.length - 1]
+
+  // Generate contextual quick replies based on last message
+  const suggestions = []
+  const content = lastMessage.content?.toLowerCase() || ''
+
+  if (lastMessage.sender_type === 'ai') {
+    // Responding to AI
+    suggestions.push('Thanks, that helps! 👍')
+    suggestions.push('Can you explain more?')
+    suggestions.push('What else should I know?')
+  } else if (content.includes('?')) {
+    // Question was asked
+    suggestions.push('Let me check on that')
+    suggestions.push('Good question, @ai can you help?')
+    suggestions.push('I think we should discuss this')
+  } else if (content.includes('task') || content.includes('todo')) {
+    suggestions.push('/tasks')
+    suggestions.push("What's the priority?")
+    suggestions.push('@ai can you create a task for this?')
+  } else if (content.includes('done') || content.includes('complete')) {
+    suggestions.push('Great work! 🎉')
+    suggestions.push("What's next?")
+  } else {
+    // Default suggestions
+    suggestions.push('Sounds good!')
+    suggestions.push('@ai what do you think?')
+    suggestions.push('/summarize 5')
+  }
+
+  smartSuggestions.value = suggestions.slice(0, 3)
+  showSmartSuggestions.value = suggestions.length > 0
+}
+
+// Notifications
+const requestNotificationPermission = async () => {
+  if ('Notification' in window) {
+    const permission = await Notification.requestPermission()
+    notificationsEnabled.value = permission === 'granted'
+  }
+}
+
+const showNotification = (title, body, tag = 'ai-rooms') => {
+  if (!notificationsEnabled.value || document.hasFocus()) return
+
+  try {
+    const notification = new Notification(title, {
+      body: body.substring(0, 100),
+      icon: '/favicon.ico',
+      tag: tag,
+      requireInteraction: false,
+    })
+
+    notification.onclick = () => {
+      window.focus()
+      notification.close()
+    }
+
+    // Auto-close after 5 seconds
+    setTimeout(() => notification.close(), 5000)
+  } catch (err) {
+    console.warn('Notification error:', err)
+  }
+}
+
+const checkForMention = (message) => {
+  const currentUsername = localStorage.getItem('username')
+  const content = message.content?.toLowerCase() || ''
+
+  // Check if mentioned
+  if (currentUsername && content.includes(`@${currentUsername.toLowerCase()}`)) {
+    showNotification(
+      `${message.sender_name || 'Someone'} mentioned you`,
+      message.content,
+      `mention-${message.id}`,
+    )
+    return true
+  }
+  return false
 }
 
 // Connect to WebSocket
@@ -649,6 +1095,9 @@ const connectWebSocket = () => {
           // Add new message to list
           messages.value.push(data.message)
           nextTick(() => scrollToBottom())
+
+          // Check for mentions and show notification
+          checkForMention(data.message)
         } else if (data.type === 'task_created' || data.type === 'task_updated') {
           // Handle real-time task updates
           if (data.task) {
@@ -659,12 +1108,46 @@ const connectWebSocket = () => {
               tasks.value.unshift(data.task)
             }
           }
+        } else if (data.type === 'kb_updated') {
+          // Handle real-time KB updates
+          if (data.kb) {
+            knowledgeBase.value = data.kb
+          }
+        } else if (data.type === 'document_uploaded') {
+          // Handle new document uploads
+          if (data.document) {
+            const exists = documents.value.find((d) => d.id === data.document.id)
+            if (!exists) {
+              documents.value.unshift(data.document)
+            }
+          }
+        } else if (data.type === 'document_deleted') {
+          // Handle document deletion
+          if (data.document_id) {
+            documents.value = documents.value.filter((d) => d.id !== data.document_id)
+          }
         } else if (data.type === 'system') {
           // Handle system messages (user joined/left)
           console.log('System message:', data.content)
+          // Add system message to chat
+          messages.value.push({
+            id: `system-${Date.now()}`,
+            sender_type: 'system',
+            content: data.content,
+            created_at: new Date().toISOString(),
+          })
+          nextTick(() => scrollToBottom())
         } else if (data.type === 'typing') {
           // Handle typing indicators
-          console.log(`${data.username} is typing...`)
+          if (data.is_typing) {
+            typingUsers.value[data.user_id] = data.username
+          } else {
+            delete typingUsers.value[data.user_id]
+          }
+          // Auto-clear typing after 5 seconds
+          setTimeout(() => {
+            delete typingUsers.value[data.user_id]
+          }, 5000)
         } else if (data.type === 'reaction') {
           // Handle incoming reactions from other users
           const msgId = data.message_id
@@ -673,6 +1156,11 @@ const connectWebSocket = () => {
             const reactions = messageReactions.value[msgId] || {}
             reactions[emoji] = (reactions[emoji] || 0) + 1
             messageReactions.value[msgId] = { ...reactions }
+          }
+        } else if (data.type === 'presence') {
+          // Handle presence updates
+          if (data.online_users) {
+            onlineUserIds.value = data.online_users
           }
         }
       } catch (err) {
@@ -744,6 +1232,7 @@ const getReplyTarget = (message) => {
 onMounted(() => {
   fetchRoom()
   connectWebSocket()
+  requestNotificationPermission()
   nextTick(() => scrollToBottom())
 })
 
@@ -757,6 +1246,8 @@ onUnmounted(() => {
 watch(messages, () => {
   nextTick(() => scrollToBottom())
   activeMessageIndex.value = messages.value.length ? messages.value.length - 1 : -1
+  // Generate smart suggestions when new messages arrive
+  generateSmartSuggestions()
 })
 
 watch(filteredMentions, () => {
@@ -781,11 +1272,29 @@ watch(filteredCommands, () => {
           <div class="room-status-bar">
             <span class="status-dot status-active"></span>
             <span class="status-text">AI Active</span>
+            <span class="status-separator">·</span>
+            <span class="online-indicator">
+              <span class="online-dot"></span>
+              {{ onlineCount }} online
+            </span>
           </div>
         </div>
       </div>
 
       <div class="room-header-actions">
+        <!-- Online Avatars -->
+        <div class="online-avatars">
+          <div
+            v-for="member in onlineMembers.slice(0, 5)"
+            :key="member.user_id"
+            class="online-avatar-mini"
+            :class="{ 'is-online': member.isOnline }"
+            :title="member.username + (member.isOnline ? ' (online)' : '')"
+          >
+            {{ member.username?.charAt(0)?.toUpperCase() || '?' }}
+          </div>
+          <div v-if="members.length > 5" class="online-avatar-more">+{{ members.length - 5 }}</div>
+        </div>
         <button class="btn btn-ghost btn-sm">Members</button>
         <button class="btn btn-ghost btn-sm">Settings</button>
       </div>
@@ -937,6 +1446,21 @@ watch(filteredCommands, () => {
             <button class="chip-btn" @click="cancelReply">Cancel</button>
           </div>
 
+          <!-- Smart Suggestions -->
+          <div v-if="showSmartSuggestions && smartSuggestions.length" class="smart-suggestions">
+            <span class="suggestions-label">✨ Quick replies:</span>
+            <div class="suggestions-list">
+              <button
+                v-for="(suggestion, idx) in smartSuggestions"
+                :key="idx"
+                class="suggestion-chip"
+                @click="useSuggestion(suggestion)"
+              >
+                {{ suggestion }}
+              </button>
+            </div>
+          </div>
+
           <div class="message-input-wrapper glass-panel">
             <input
               v-model="messageInput"
@@ -978,6 +1502,13 @@ watch(filteredCommands, () => {
             @click="activePanel = 'knowledge'"
           >
             KB
+          </button>
+          <button
+            class="panel-tab"
+            :class="{ active: activePanel === 'documents' }"
+            @click="activePanel = 'documents'"
+          >
+            Docs
           </button>
         </div>
 
@@ -1285,26 +1816,246 @@ watch(filteredCommands, () => {
               <h3>Knowledge Base</h3>
             </div>
 
-            <div class="panel-body">
-              <div v-if="!knowledgeBase || !knowledgeBase.content" class="empty-panel">
-                <div class="empty-icon">
-                  <AppIcon name="book" size="lg" />
+            <div class="panel-body kb-panel-body">
+              <!-- Summary Section -->
+              <div class="kb-section">
+                <div class="kb-section-header">
+                  <h4>Summary</h4>
+                  <button v-if="!editingKBSummary" class="chip-btn" @click="startEditKBSummary">
+                    Edit
+                  </button>
                 </div>
-                <p>No knowledge base entries</p>
-              </div>
-              <div v-else class="kb-content">
-                <div class="kb-section">
-                  <h4>Context</h4>
-                  <p>{{ knowledgeBase.content }}</p>
+                <div v-if="editingKBSummary" class="kb-edit-form">
+                  <textarea
+                    v-model="kbSummaryInput"
+                    class="kb-textarea"
+                    placeholder="Enter room summary..."
+                    rows="4"
+                  ></textarea>
+                  <div class="kb-edit-actions">
+                    <button class="chip-btn" @click="saveKBSummary">Save</button>
+                    <button class="chip-btn" @click="editingKBSummary = false">Cancel</button>
+                  </div>
                 </div>
+                <p v-else class="kb-summary-text">
+                  {{ knowledgeBase?.summary || 'No summary yet. Click Edit to add one.' }}
+                </p>
               </div>
-              <div v-if="goals.length > 0" class="goals-section">
-                <h4>Goals</h4>
-                <ul class="goals-list">
+
+              <!-- Key Decisions Section -->
+              <div class="kb-section">
+                <div class="kb-section-header">
+                  <h4>Key Decisions</h4>
+                  <button class="chip-btn" @click="showAddDecision = !showAddDecision">
+                    {{ showAddDecision ? 'Cancel' : '+ Add' }}
+                  </button>
+                </div>
+                <div v-if="showAddDecision" class="kb-add-form">
+                  <input
+                    v-model="newDecision"
+                    type="text"
+                    class="kb-input"
+                    placeholder="Enter a key decision..."
+                    @keyup.enter="addKBDecision"
+                  />
+                  <button class="chip-btn chip-btn-primary" @click="addKBDecision">Add</button>
+                </div>
+                <ul v-if="knowledgeBase?.key_decisions?.length" class="kb-list">
+                  <li v-for="(decision, idx) in knowledgeBase.key_decisions" :key="idx">
+                    <AppIcon name="check-circle" size="xs" />
+                    {{ decision }}
+                  </li>
+                </ul>
+                <p v-else class="kb-empty">No key decisions recorded yet.</p>
+              </div>
+
+              <!-- Important Links Section -->
+              <div class="kb-section">
+                <div class="kb-section-header">
+                  <h4>Important Links</h4>
+                  <button class="chip-btn" @click="showAddLink = !showAddLink">
+                    {{ showAddLink ? 'Cancel' : '+ Add' }}
+                  </button>
+                </div>
+                <div v-if="showAddLink" class="kb-add-form kb-link-form">
+                  <input
+                    v-model="newLink.title"
+                    type="text"
+                    class="kb-input"
+                    placeholder="Link title..."
+                  />
+                  <input
+                    v-model="newLink.url"
+                    type="url"
+                    class="kb-input"
+                    placeholder="https://..."
+                    @keyup.enter="addKBLink"
+                  />
+                  <button class="chip-btn chip-btn-primary" @click="addKBLink">Add</button>
+                </div>
+                <ul v-if="knowledgeBase?.important_links?.length" class="kb-list kb-links-list">
+                  <li v-for="(link, idx) in knowledgeBase.important_links" :key="idx">
+                    <a :href="link.url" target="_blank" rel="noopener" class="kb-link">
+                      <AppIcon name="link" size="xs" />
+                      {{ link.title }}
+                    </a>
+                  </li>
+                </ul>
+                <p v-else class="kb-empty">No important links added yet.</p>
+              </div>
+
+              <!-- Resources Section -->
+              <div class="kb-section">
+                <div class="kb-section-header">
+                  <h4>Resources</h4>
+                  <button class="chip-btn" @click="showAddResource = !showAddResource">
+                    {{ showAddResource ? 'Cancel' : '+ Add' }}
+                  </button>
+                </div>
+                <div v-if="showAddResource" class="kb-add-form kb-resource-form">
+                  <input
+                    v-model="newResource.title"
+                    type="text"
+                    class="kb-input"
+                    placeholder="Resource title..."
+                  />
+                  <input
+                    v-model="newResource.url"
+                    type="url"
+                    class="kb-input"
+                    placeholder="https://..."
+                  />
+                  <input
+                    v-model="newResource.description"
+                    type="text"
+                    class="kb-input"
+                    placeholder="Description (optional)..."
+                    @keyup.enter="addKBResource"
+                  />
+                  <button class="chip-btn chip-btn-primary" @click="addKBResource">Add</button>
+                </div>
+                <ul v-if="knowledgeBase?.resources?.length" class="kb-list kb-resources-list">
+                  <li v-for="(resource, idx) in knowledgeBase.resources" :key="idx">
+                    <a :href="resource.url" target="_blank" rel="noopener" class="kb-resource">
+                      <AppIcon name="file" size="xs" />
+                      <div class="kb-resource-info">
+                        <span class="kb-resource-title">{{ resource.title }}</span>
+                        <span v-if="resource.description" class="kb-resource-desc">
+                          {{ resource.description }}
+                        </span>
+                      </div>
+                    </a>
+                  </li>
+                </ul>
+                <p v-else class="kb-empty">No resources added yet.</p>
+              </div>
+
+              <!-- Goals Section -->
+              <div v-if="goals.length > 0" class="kb-section">
+                <div class="kb-section-header">
+                  <h4>Goals</h4>
+                </div>
+                <ul class="kb-list">
                   <li v-for="goal in goals" :key="goal.id">
+                    <AppIcon name="target" size="xs" />
                     {{ goal.description }}
                   </li>
                 </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Documents Panel -->
+          <div v-if="activePanel === 'documents'" class="documents-panel">
+            <div class="panel-header">
+              <h3>Documents</h3>
+              <button @click="showDocUpload = !showDocUpload" class="btn btn-ghost btn-sm">
+                <AppIcon name="upload" size="xs" /> Upload
+              </button>
+            </div>
+
+            <div class="panel-body docs-panel-body">
+              <!-- Upload Section -->
+              <div v-if="showDocUpload" class="doc-upload-section">
+                <div class="doc-upload-area" @dragover.prevent @drop.prevent="handleDocDrop">
+                  <input
+                    type="file"
+                    ref="docFileInput"
+                    @change="handleDocumentUpload"
+                    accept=".pdf,.pptx"
+                    hidden
+                  />
+                  <div class="upload-placeholder" @click="$refs.docFileInput.click()">
+                    <AppIcon name="file-plus" size="lg" />
+                    <p>Drop PDF or PPTX here, or click to browse</p>
+                  </div>
+                </div>
+                <div v-if="uploadingDoc" class="doc-upload-progress">
+                  <div class="progress-bar">
+                    <div class="progress-fill" :style="{ width: docUploadProgress + '%' }"></div>
+                  </div>
+                  <span>{{ docUploadProgress }}%</span>
+                </div>
+              </div>
+
+              <!-- Search Section -->
+              <div class="doc-search-section">
+                <input
+                  v-model="docSearchQuery"
+                  type="text"
+                  placeholder="Search documents..."
+                  class="doc-search-input"
+                  @keyup.enter="searchDocuments"
+                />
+              </div>
+
+              <!-- Search Results -->
+              <div v-if="docSearchResults.length" class="doc-search-results">
+                <h4>Search Results</h4>
+                <div
+                  v-for="result in docSearchResults"
+                  :key="result.document_id"
+                  class="doc-result-item"
+                >
+                  <div class="doc-result-header">
+                    <AppIcon
+                      :name="result.file_type === 'pdf' ? 'file-text' : 'presentation'"
+                      size="sm"
+                    />
+                    <span class="doc-result-filename">{{ result.filename }}</span>
+                    <span class="doc-result-score"
+                      >{{ Math.round(result.similarity * 100) }}% match</span
+                    >
+                  </div>
+                  <p class="doc-result-content">{{ result.content }}</p>
+                </div>
+              </div>
+
+              <!-- Documents List -->
+              <div class="doc-list">
+                <h4>All Documents</h4>
+                <div v-if="documents.length" class="doc-items">
+                  <div v-for="doc in documents" :key="doc._id" class="doc-item">
+                    <div class="doc-item-icon">
+                      <AppIcon
+                        :name="doc.file_type === 'pdf' ? 'file-text' : 'presentation'"
+                        size="md"
+                      />
+                    </div>
+                    <div class="doc-item-info">
+                      <span class="doc-item-name">{{ doc.filename }}</span>
+                      <span class="doc-item-meta">
+                        {{ formatFileSize(doc.file_size) }} · {{ doc.chunk_count }} chunks
+                        <span v-if="doc.status === 'processing'" class="doc-processing">
+                          <AppIcon name="loader" size="xs" class="spin" /> Processing...
+                        </span>
+                        <span v-else-if="doc.status === 'completed'" class="doc-ready">Ready</span>
+                        <span v-else-if="doc.status === 'failed'" class="doc-failed">Failed</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="doc-empty">No documents uploaded yet.</p>
               </div>
             </div>
           </div>
@@ -1360,7 +2111,6 @@ watch(filteredCommands, () => {
   overflow: hidden;
   background: var(--background);
 }
-
 
 .room-header {
   display: flex;
@@ -1432,7 +2182,87 @@ watch(filteredCommands, () => {
 
 .room-header-actions {
   display: flex;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Online Avatars */
+.online-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.online-avatar-mini {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-elevated);
+  border: 2px solid var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: -8px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.online-avatar-mini:first-child {
+  margin-left: 0;
+}
+
+.online-avatar-mini.is-online {
+  border-color: var(--success);
+  color: var(--text-primary);
+}
+
+.online-avatar-mini.is-online::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border: 2px solid var(--background);
+  border-radius: 50%;
+}
+
+.online-avatar-more {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  border: 2px solid var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-left: -8px;
+}
+
+.status-separator {
+  color: var(--text-muted);
+  margin: 0 var(--space-1);
+}
+
+.online-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.online-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
 }
 
 .btn-ghost {
@@ -1720,6 +2550,58 @@ watch(filteredCommands, () => {
 
 /* Message Input - using the enhanced version at the bottom */
 
+/* Smart Suggestions */
+.smart-suggestions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestions-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.suggestions-list {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.suggestion-chip {
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.suggestion-chip:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
 .message-input-wrapper {
   display: flex;
   gap: var(--space-3);
@@ -1981,6 +2863,175 @@ watch(filteredCommands, () => {
 }
 
 /* Knowledge Base */
+.kb-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.kb-section {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+}
+
+.kb-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.kb-section h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.kb-summary-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.kb-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kb-textarea {
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.kb-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.kb-edit-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.kb-add-form {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.kb-link-form,
+.kb-resource-form {
+  flex-direction: column;
+}
+
+.kb-input {
+  flex: 1;
+  min-width: 120px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.kb-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.chip-btn-primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.chip-btn-primary:hover {
+  background: var(--primary-soft);
+}
+
+.kb-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kb-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.kb-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.kb-link:hover {
+  text-decoration: underline;
+}
+
+.kb-resource {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  text-decoration: none;
+  width: 100%;
+}
+
+.kb-resource:hover {
+  color: var(--primary);
+}
+
+.kb-resource-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kb-resource-title {
+  font-weight: 500;
+}
+
+.kb-resource-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.kb-empty {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
 .kb-content {
   background: var(--surface);
   border-radius: var(--radius-md);
@@ -2020,6 +3071,247 @@ watch(filteredCommands, () => {
   border-radius: var(--radius-md);
   margin-bottom: var(--space-2);
   font-size: 0.9rem;
+}
+
+/* Documents Panel */
+.documents-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.docs-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: 1;
+  overflow-y: auto;
+}
+
+.doc-upload-section {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+}
+
+.doc-upload-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.doc-upload-area:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+}
+
+.upload-placeholder p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.doc-upload-progress {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--surface-elevated);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+.doc-search-section {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+}
+
+.doc-search-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.doc-search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.doc-search-results {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+}
+
+.doc-search-results h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+  color: var(--text-primary);
+}
+
+.doc-result-item {
+  padding: var(--space-3);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.doc-result-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.doc-result-filename {
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.doc-result-score {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--primary-soft);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.doc-result-content {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.doc-list {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  flex: 1;
+}
+
+.doc-list h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+  color: var(--text-primary);
+}
+
+.doc-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.doc-item:hover {
+  background: var(--primary-soft);
+}
+
+.doc-item-icon {
+  color: var(--primary);
+}
+
+.doc-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-item-name {
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-item-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.doc-processing {
+  color: var(--warning);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.doc-ready {
+  color: var(--success);
+}
+
+.doc-failed {
+  color: var(--error);
+}
+
+.doc-empty {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Modal */

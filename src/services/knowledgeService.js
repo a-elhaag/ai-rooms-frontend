@@ -28,4 +28,30 @@ export default {
     const response = await apiClient.put(`/rooms/${roomId}/kb`, kbData)
     return response.data
   },
+
+  async appendToKB(roomId, appendData) {
+    // appendData: { key_decision?, important_link?, resource?: { title, url?, description?, category? } }
+    const response = await apiClient.post(`/rooms/${roomId}/kb/append`, appendData)
+    return response.data
+  },
+
+  // Add a key decision to KB
+  async addDecision(roomId, decision) {
+    const response = await apiClient.post(`/rooms/${roomId}/kb/decisions`, { decision })
+    return response.data
+  },
+
+  // Add an important link to KB
+  async addLink(roomId, link) {
+    // link: { title, url }
+    const response = await apiClient.post(`/rooms/${roomId}/kb/links`, link)
+    return response.data
+  },
+
+  // Add a resource to KB
+  async addResource(roomId, resource) {
+    // resource: { title, url, description? }
+    const response = await apiClient.post(`/rooms/${roomId}/kb/resources`, resource)
+    return response.data
+  },
 }

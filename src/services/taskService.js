@@ -1,6 +1,12 @@
 import apiClient from '@/api'
 
 export default {
+  async getAllTasks() {
+    // Get all tasks from all rooms the user is a member of
+    const response = await apiClient.get('/tasks')
+    return response.data
+  },
+
   async getRoomTasks(roomId) {
     const response = await apiClient.get(`/rooms/${roomId}/tasks`)
     return response.data

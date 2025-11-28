@@ -51,6 +51,11 @@ import {
   Brain,
   Clipboard,
   Box,
+  Upload,
+  FilePlus,
+  Presentation,
+  Loader,
+  Target,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -112,6 +117,11 @@ const icons = {
   brain: Brain,
   clipboard: Clipboard,
   box: Box,
+  upload: Upload,
+  'file-plus': FilePlus,
+  presentation: Presentation,
+  loader: Loader,
+  target: Target,
 }
 
 const iconComponent = computed(() => {

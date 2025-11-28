@@ -1,36 +1,43 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import taskService from '@/services/taskService'
 
-const tasks = ref([
-  {
-    id: 1,
-    title: 'Review AI suggestions',
-    room: 'Product Planning',
-    status: 'pending',
-    priority: 'high',
-    due: '2025-11-28',
-  },
-  {
-    id: 2,
-    title: 'Update knowledge base',
-    room: 'Research',
-    status: 'in-progress',
-    priority: 'medium',
-    due: '2025-11-30',
-  },
-  {
-    id: 3,
-    title: 'Prepare presentation',
-    room: 'Marketing',
-    status: 'completed',
-    priority: 'low',
-    due: '2025-11-25',
-  },
-])
+const tasks = ref([])
+const loading = ref(true)
+const error = ref(null)
 
 const filter = ref('all')
 const showCreateModal = ref(false)
+
+// Fetch all tasks from backend
+const fetchTasks = async () => {
+  loading.value = true
+  error.value = null
+  try {
+    const data = await taskService.getAllTasks()
+    tasks.value = data.map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      room: t.room_name || 'Unknown Room',
+      room_id: t.room_id,
+      status: t.status || 'pending',
+      priority: t.priority || 'medium',
+      due: t.due_date,
+      assignee_id: t.assignee_id,
+    }))
+  } catch (err) {
+    console.error('Error fetching tasks:', err)
+    error.value = 'Failed to load tasks'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchTasks()
+})
 
 const filteredTasks = computed(() => {
   if (filter.value === 'all') return tasks.value
@@ -48,6 +55,7 @@ const getPriorityClass = (priority) => `priority-${priority}`
 const getStatusClass = (status) => `status-${status}`
 
 const formatDate = (dateString) => {
+  if (!dateString) return 'No due date'
   const date = new Date(dateString)
   const now = new Date()
   const diff = date - now
@@ -58,6 +66,17 @@ const formatDate = (dateString) => {
   if (days === 1) return 'Tomorrow'
   if (days < 7) return `${days} days`
   return date.toLocaleDateString()
+}
+
+// Toggle task completion
+const toggleTaskComplete = async (task) => {
+  const newStatus = task.status === 'completed' ? 'pending' : 'completed'
+  try {
+    await taskService.updateTask(task.id, { status: newStatus })
+    task.status = newStatus
+  } catch (err) {
+    console.error('Error updating task:', err)
+  }
 }
 </script>
 
@@ -97,7 +116,20 @@ const formatDate = (dateString) => {
 
     <!-- Tasks Content -->
     <div class="view-content">
-      <div v-if="filteredTasks.length === 0" class="empty-state">
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading tasks...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="error-state">
+        <AppIcon name="alert-circle" size="xl" />
+        <p>{{ error }}</p>
+        <button class="btn btn-primary" @click="fetchTasks">Retry</button>
+      </div>
+
+      <div v-else-if="filteredTasks.length === 0" class="empty-state">
         <div class="empty-illustration">
           <div class="empty-icon-wrap">
             <AppIcon name="check-circle" size="xl" />
@@ -116,7 +148,11 @@ const formatDate = (dateString) => {
           :class="getStatusClass(task.status)"
         >
           <div class="task-checkbox">
-            <input type="checkbox" :checked="task.status === 'completed'" />
+            <input
+              type="checkbox"
+              :checked="task.status === 'completed'"
+              @change="toggleTaskComplete(task)"
+            />
           </div>
 
           <div class="task-main">
@@ -271,6 +307,36 @@ const formatDate = (dateString) => {
   flex: 1;
   overflow-y: auto;
   padding: 1rem 2rem 2rem;
+}
+
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: 1rem;
+  color: var(--text-muted);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error-state {
+  color: var(--danger);
 }
 
 .empty-state {
