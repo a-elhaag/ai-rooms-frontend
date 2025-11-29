@@ -54,4 +54,12 @@ export default {
     const response = await apiClient.post(`/rooms/${roomId}/kb/resources`, resource)
     return response.data
   },
+
+  async removeResource(roomId, url) {
+    const response = await apiClient.post(`/rooms/${roomId}/kb/remove`, {
+      item_type: 'resource',
+      value: url,
+    })
+    return response.data
+  },
 }

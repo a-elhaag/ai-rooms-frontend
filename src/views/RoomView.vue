@@ -153,6 +153,12 @@ const slashCommands = [
     action: 'tasks',
   },
   {
+    id: 'kb',
+    label: 'Share knowledge',
+    description: 'Insert the latest knowledge base context',
+    action: 'kb',
+  },
+  {
     id: 'ask-ai',
     label: 'Ask AI',
     description: 'Mention the AI directly',
@@ -324,6 +330,17 @@ const uploadDocument = async (file) => {
     })
 
     documents.value.unshift(doc)
+    try {
+      await knowledgeService.addResource(roomId.value, {
+        title: doc.filename || 'Uploaded document',
+        url: doc.id,
+        description: doc.summary || 'Document uploaded to room',
+      })
+      await fetchKnowledgeBase()
+      await fetchGoals()
+    } catch (err) {
+      console.error('Failed to append upload to KB:', err)
+    }
     uploadProgress.value = 100
   } catch (err) {
     console.error('Failed to upload document:', err)
@@ -340,6 +357,13 @@ const deleteDocument = async (docId) => {
   try {
     await documentService.deleteDocument(roomId.value, docId)
     documents.value = documents.value.filter((d) => d.id !== docId)
+    try {
+      await knowledgeService.removeResource(roomId.value, docId)
+      await fetchKnowledgeBase()
+      await fetchGoals()
+    } catch (err) {
+      console.error('Failed to remove document from KB:', err)
+    }
   } catch (err) {
     console.error('Failed to delete document:', err)
   }
@@ -410,6 +434,17 @@ const uploadDocumentWithProgress = async (file) => {
     })
 
     documents.value.unshift(doc)
+    try {
+      await knowledgeService.addResource(roomId.value, {
+        title: doc.filename || 'Uploaded document',
+        url: doc.id,
+        description: doc.summary || 'Document uploaded to room',
+      })
+      await fetchKnowledgeBase()
+      await fetchGoals()
+    } catch (err) {
+      console.error('Failed to append upload to KB:', err)
+    }
     showDocUpload.value = false
   } catch (err) {
     console.error('Failed to upload document:', err)
@@ -418,6 +453,16 @@ const uploadDocumentWithProgress = async (file) => {
     uploadingDoc.value = false
     docUploadProgress.value = 0
   }
+}
+
+const mentionDocument = (doc) => {
+  const ref = `@doc:${doc.filename || doc.id}`
+  messageInput.value = messageInput.value ? `${messageInput.value} ${ref}` : ref
+  nextTick(() => {
+    if (messageInputField.value) {
+      messageInputField.value.focus()
+    }
+  })
 }
 
 const searchDocuments = async () => {
@@ -626,6 +671,15 @@ const resolveTask = (task) => {
   updateTaskStatus(task, 'done')
 }
 
+const deleteTask = async (task) => {
+  try {
+    await taskService.deleteTask(task.id)
+    tasks.value = tasks.value.filter((t) => t.id !== task.id)
+  } catch (err) {
+    console.error('Failed to delete task:', err)
+  }
+}
+
 const detectAssigneeForText = (text) => {
   if (!text) return null
   const lowered = text.toLowerCase()
@@ -741,6 +795,11 @@ const selectCommand = async (command) => {
     addTasksSnapshotToChat()
     return
   }
+
+  if (command.action === 'kb') {
+    addKnowledgeSnapshotToChat()
+    return
+  }
 }
 
 const handleKeyDown = (e) => {
@@ -834,9 +893,55 @@ const addTasksSnapshotToChat = () => {
   nextTick(() => scrollToBottom())
 }
 
+const addKnowledgeSnapshotToChat = () => {
+  if (!knowledgeBase.value) {
+    messages.value.push({
+      id: `ai-kb-${Date.now()}`,
+      sender_type: 'ai',
+      sender_name: 'AI Assistant',
+      content: 'No knowledge base is available yet.',
+      created_at: new Date().toISOString(),
+    })
+    return
+  }
+
+  const kb = knowledgeBase.value
+  const goalsText =
+    goals.value && goals.value.length
+      ? `Goals: ${goals.value.map((g) => g.description).join(' | ')}`
+      : ''
+  const content = `Knowledge: ${kb.content || 'No content'}${goalsText ? `\n${goalsText}` : ''}`
+
+  messages.value.push({
+    id: `ai-kb-${Date.now()}`,
+    sender_type: 'ai',
+    sender_name: 'AI Assistant',
+    content,
+    created_at: new Date().toISOString(),
+  })
+  nextTick(() => scrollToBottom())
+}
+
 const messageHasAIMention = (text) => {
   if (!text) return false
   return /@ai(\b|_)/i.test(text) || /@ai assistant/i.test(text)
+}
+
+const buildAIContext = (content, replyMessage = null) => {
+  const kb = knowledgeBase.value?.content
+  const goalsText =
+    goals.value && goals.value.length
+      ? `Goals: ${goals.value.map((g) => g.description).join(' | ')}`
+      : ''
+  const contextParts = [content]
+  if (replyMessage) {
+    contextParts.push(
+      `Reply target from ${replyMessage.sender_name || 'Unknown'}: ${replyMessage.content}`,
+    )
+  }
+  if (kb) contextParts.push(`KB: ${kb}`)
+  if (goalsText) contextParts.push(goalsText)
+  return contextParts.join('\n\n')
 }
 
 const triggerAIReply = async (content) => {
@@ -931,7 +1036,9 @@ const sendMessage = async () => {
 
   const content = messageInput.value.trim()
   const wantsAIReply =
-    messageHasAIMention(content) || (!!replyingTo.value && replyingTo.value.sender_type === 'ai')
+    messageHasAIMention(content) ||
+    (!!replyingTo.value && replyingTo.value.sender_type === 'ai') ||
+    (!!replyingTo.value && messageHasAIMention(content))
   const replyPayload = replyingTo.value ? { reply_to: replyingTo.value.id } : {}
   const aiContext = replyingTo.value
     ? `${content}\n\n(Replying to "${replyingTo.value.content}")`
@@ -964,7 +1071,7 @@ const sendMessage = async () => {
       scrollToBottom()
 
       if (wantsAIReply) {
-        await triggerAIReply(aiContext)
+        await triggerAIReply(buildAIContext(aiContext, replyingTo.value))
       }
     }
   } catch (err) {
@@ -975,53 +1082,6 @@ const sendMessage = async () => {
     showSmartSuggestions.value = false
     smartSuggestions.value = []
   }
-}
-
-// Smart Suggestions
-const useSuggestion = (suggestion) => {
-  messageInput.value = suggestion
-  showSmartSuggestions.value = false
-  smartSuggestions.value = []
-  messageInputField.value?.focus()
-}
-
-const generateSmartSuggestions = () => {
-  // Get last few messages for context
-  const recentMessages = messages.value.slice(-5)
-  if (recentMessages.length === 0) return
-
-  const lastMessage = recentMessages[recentMessages.length - 1]
-
-  // Generate contextual quick replies based on last message
-  const suggestions = []
-  const content = lastMessage.content?.toLowerCase() || ''
-
-  if (lastMessage.sender_type === 'ai') {
-    // Responding to AI
-    suggestions.push('Thanks, that helps! 👍')
-    suggestions.push('Can you explain more?')
-    suggestions.push('What else should I know?')
-  } else if (content.includes('?')) {
-    // Question was asked
-    suggestions.push('Let me check on that')
-    suggestions.push('Good question, @ai can you help?')
-    suggestions.push('I think we should discuss this')
-  } else if (content.includes('task') || content.includes('todo')) {
-    suggestions.push('/tasks')
-    suggestions.push("What's the priority?")
-    suggestions.push('@ai can you create a task for this?')
-  } else if (content.includes('done') || content.includes('complete')) {
-    suggestions.push('Great work! 🎉')
-    suggestions.push("What's next?")
-  } else {
-    // Default suggestions
-    suggestions.push('Sounds good!')
-    suggestions.push('@ai what do you think?')
-    suggestions.push('/summarize 5')
-  }
-
-  smartSuggestions.value = suggestions.slice(0, 3)
-  showSmartSuggestions.value = suggestions.length > 0
 }
 
 // Notifications
@@ -1108,11 +1168,14 @@ const connectWebSocket = () => {
               tasks.value.unshift(data.task)
             }
           }
+        } else if (data.type === 'task_deleted') {
+          tasks.value = tasks.value.filter((t) => t.id !== data.task_id)
         } else if (data.type === 'kb_updated') {
           // Handle real-time KB updates
           if (data.kb) {
             knowledgeBase.value = data.kb
           }
+          fetchGoals()
         } else if (data.type === 'document_uploaded') {
           // Handle new document uploads
           if (data.document) {
@@ -1446,21 +1509,6 @@ watch(filteredCommands, () => {
             <button class="chip-btn" @click="cancelReply">Cancel</button>
           </div>
 
-          <!-- Smart Suggestions -->
-          <div v-if="showSmartSuggestions && smartSuggestions.length" class="smart-suggestions">
-            <span class="suggestions-label">✨ Quick replies:</span>
-            <div class="suggestions-list">
-              <button
-                v-for="(suggestion, idx) in smartSuggestions"
-                :key="idx"
-                class="suggestion-chip"
-                @click="useSuggestion(suggestion)"
-              >
-                {{ suggestion }}
-              </button>
-            </div>
-          </div>
-
           <div class="message-input-wrapper glass-panel">
             <input
               v-model="messageInput"
@@ -1495,13 +1543,6 @@ watch(filteredCommands, () => {
             @click="activePanel = 'tasks'"
           >
             Tasks
-          </button>
-          <button
-            class="panel-tab"
-            :class="{ active: activePanel === 'knowledge' }"
-            @click="activePanel = 'knowledge'"
-          >
-            KB
           </button>
           <button
             class="panel-tab"
@@ -1567,6 +1608,8 @@ watch(filteredCommands, () => {
                           Edit
                         </button>
                         <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
+                        <button class="chip-btn danger" @click="deleteTask(task)">Delete</button>
+                        <button class="chip-btn danger" @click="deleteTask(task)">Delete</button>
                       </div>
                     </div>
                     <div class="task-card-footer">
@@ -1661,6 +1704,7 @@ watch(filteredCommands, () => {
                           Edit
                         </button>
                         <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
+                        <button class="chip-btn danger" @click="deleteTask(task)">Delete</button>
                       </div>
                     </div>
                     <div class="task-card-footer">
@@ -1810,161 +1854,6 @@ watch(filteredCommands, () => {
             </div>
           </div>
 
-          <!-- Knowledge Panel -->
-          <div v-if="activePanel === 'knowledge'" class="knowledge-panel">
-            <div class="panel-header">
-              <h3>Knowledge Base</h3>
-            </div>
-
-            <div class="panel-body kb-panel-body">
-              <!-- Summary Section -->
-              <div class="kb-section">
-                <div class="kb-section-header">
-                  <h4>Summary</h4>
-                  <button v-if="!editingKBSummary" class="chip-btn" @click="startEditKBSummary">
-                    Edit
-                  </button>
-                </div>
-                <div v-if="editingKBSummary" class="kb-edit-form">
-                  <textarea
-                    v-model="kbSummaryInput"
-                    class="kb-textarea"
-                    placeholder="Enter room summary..."
-                    rows="4"
-                  ></textarea>
-                  <div class="kb-edit-actions">
-                    <button class="chip-btn" @click="saveKBSummary">Save</button>
-                    <button class="chip-btn" @click="editingKBSummary = false">Cancel</button>
-                  </div>
-                </div>
-                <p v-else class="kb-summary-text">
-                  {{ knowledgeBase?.summary || 'No summary yet. Click Edit to add one.' }}
-                </p>
-              </div>
-
-              <!-- Key Decisions Section -->
-              <div class="kb-section">
-                <div class="kb-section-header">
-                  <h4>Key Decisions</h4>
-                  <button class="chip-btn" @click="showAddDecision = !showAddDecision">
-                    {{ showAddDecision ? 'Cancel' : '+ Add' }}
-                  </button>
-                </div>
-                <div v-if="showAddDecision" class="kb-add-form">
-                  <input
-                    v-model="newDecision"
-                    type="text"
-                    class="kb-input"
-                    placeholder="Enter a key decision..."
-                    @keyup.enter="addKBDecision"
-                  />
-                  <button class="chip-btn chip-btn-primary" @click="addKBDecision">Add</button>
-                </div>
-                <ul v-if="knowledgeBase?.key_decisions?.length" class="kb-list">
-                  <li v-for="(decision, idx) in knowledgeBase.key_decisions" :key="idx">
-                    <AppIcon name="check-circle" size="xs" />
-                    {{ decision }}
-                  </li>
-                </ul>
-                <p v-else class="kb-empty">No key decisions recorded yet.</p>
-              </div>
-
-              <!-- Important Links Section -->
-              <div class="kb-section">
-                <div class="kb-section-header">
-                  <h4>Important Links</h4>
-                  <button class="chip-btn" @click="showAddLink = !showAddLink">
-                    {{ showAddLink ? 'Cancel' : '+ Add' }}
-                  </button>
-                </div>
-                <div v-if="showAddLink" class="kb-add-form kb-link-form">
-                  <input
-                    v-model="newLink.title"
-                    type="text"
-                    class="kb-input"
-                    placeholder="Link title..."
-                  />
-                  <input
-                    v-model="newLink.url"
-                    type="url"
-                    class="kb-input"
-                    placeholder="https://..."
-                    @keyup.enter="addKBLink"
-                  />
-                  <button class="chip-btn chip-btn-primary" @click="addKBLink">Add</button>
-                </div>
-                <ul v-if="knowledgeBase?.important_links?.length" class="kb-list kb-links-list">
-                  <li v-for="(link, idx) in knowledgeBase.important_links" :key="idx">
-                    <a :href="link.url" target="_blank" rel="noopener" class="kb-link">
-                      <AppIcon name="link" size="xs" />
-                      {{ link.title }}
-                    </a>
-                  </li>
-                </ul>
-                <p v-else class="kb-empty">No important links added yet.</p>
-              </div>
-
-              <!-- Resources Section -->
-              <div class="kb-section">
-                <div class="kb-section-header">
-                  <h4>Resources</h4>
-                  <button class="chip-btn" @click="showAddResource = !showAddResource">
-                    {{ showAddResource ? 'Cancel' : '+ Add' }}
-                  </button>
-                </div>
-                <div v-if="showAddResource" class="kb-add-form kb-resource-form">
-                  <input
-                    v-model="newResource.title"
-                    type="text"
-                    class="kb-input"
-                    placeholder="Resource title..."
-                  />
-                  <input
-                    v-model="newResource.url"
-                    type="url"
-                    class="kb-input"
-                    placeholder="https://..."
-                  />
-                  <input
-                    v-model="newResource.description"
-                    type="text"
-                    class="kb-input"
-                    placeholder="Description (optional)..."
-                    @keyup.enter="addKBResource"
-                  />
-                  <button class="chip-btn chip-btn-primary" @click="addKBResource">Add</button>
-                </div>
-                <ul v-if="knowledgeBase?.resources?.length" class="kb-list kb-resources-list">
-                  <li v-for="(resource, idx) in knowledgeBase.resources" :key="idx">
-                    <a :href="resource.url" target="_blank" rel="noopener" class="kb-resource">
-                      <AppIcon name="file" size="xs" />
-                      <div class="kb-resource-info">
-                        <span class="kb-resource-title">{{ resource.title }}</span>
-                        <span v-if="resource.description" class="kb-resource-desc">
-                          {{ resource.description }}
-                        </span>
-                      </div>
-                    </a>
-                  </li>
-                </ul>
-                <p v-else class="kb-empty">No resources added yet.</p>
-              </div>
-
-              <!-- Goals Section -->
-              <div v-if="goals.length > 0" class="kb-section">
-                <div class="kb-section-header">
-                  <h4>Goals</h4>
-                </div>
-                <ul class="kb-list">
-                  <li v-for="goal in goals" :key="goal.id">
-                    <AppIcon name="target" size="xs" />
-                    {{ goal.description }}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
           <!-- Documents Panel -->
           <div v-if="activePanel === 'documents'" class="documents-panel">
             <div class="panel-header">
@@ -2052,6 +1941,10 @@ watch(filteredCommands, () => {
                         <span v-else-if="doc.status === 'completed'" class="doc-ready">Ready</span>
                         <span v-else-if="doc.status === 'failed'" class="doc-failed">Failed</span>
                       </span>
+                    </div>
+                    <div class="doc-item-actions">
+                      <button class="chip-btn" @click="mentionDocument(doc)">Mention</button>
+                      <button class="chip-btn danger" @click="deleteDocument(doc.id)">Delete</button>
                     </div>
                   </div>
                 </div>
@@ -3557,6 +3450,16 @@ watch(filteredCommands, () => {
   color: var(--primary);
   border-color: var(--primary-muted);
   box-shadow: var(--shadow-xs);
+}
+
+.chip-btn.danger {
+  color: var(--danger);
+  border-color: var(--danger-muted, var(--border));
+}
+
+.chip-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: var(--danger);
 }
 
 .task-title-wrap {

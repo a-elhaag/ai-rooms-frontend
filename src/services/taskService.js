@@ -23,4 +23,8 @@ export default {
     const response = await apiClient.patch(`/tasks/${taskId}`, taskData)
     return response.data
   },
+
+  async deleteTask(taskId) {
+    await apiClient.delete(`/tasks/${taskId}`)
+  },
 }
