@@ -25,6 +25,7 @@ const messageInput = ref('')
 const messageInputField = ref(null)
 const sending = ref(false)
 const messagesContainer = ref(null)
+const messagesEnd = ref(null)
 const activePanel = ref('tasks') // tasks, knowledge, documents
 const showMobilePanelMenu = ref(false)
 const showMobilePanel = ref(false)
@@ -1067,7 +1068,14 @@ const addKnowledgeSnapshotToChat = () => {
 
 const messageHasAIMention = (text) => {
   if (!text) return false
-  return /@ai(\b|_)/i.test(text) || /@veya/i.test(text)
+  const patterns = [
+    /@ai(\b|_)/i,
+    /@assistant/i,
+    /@bot/i,
+    /@veya/i,
+    /\bveya\b/i,
+  ]
+  return patterns.some((regex) => regex.test(text))
 }
 
 const buildAIContext = (content, replyMessage = null) => {
@@ -1407,8 +1415,19 @@ const connectWebSocket = () => {
 
 // Scroll to bottom of messages
 const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  const scroll = () => {
+    if (messagesEnd.value) {
+      messagesEnd.value.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    } else if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  }
+
+  // Use rAF to ensure layout is ready; works even if callers already used nextTick
+  if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+    window.requestAnimationFrame(scroll)
+  } else {
+    scroll()
   }
 }
 
@@ -1612,6 +1631,7 @@ watch(filteredCommands, () => {
               </div>
             </div>
           </div>
+          <div ref="messagesEnd"></div>
         </div>
 
         <!-- Message Input -->
