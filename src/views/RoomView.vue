@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import roomService from '@/services/roomService'
 import taskService from '@/services/taskService'
 import knowledgeService from '@/services/knowledgeService'
@@ -9,6 +9,7 @@ import documentService from '@/services/documentService'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
 const route = useRoute()
+const router = useRouter()
 const roomId = ref(route.params.id)
 
 const room = ref(null)
@@ -25,10 +26,16 @@ const messageInputField = ref(null)
 const sending = ref(false)
 const messagesContainer = ref(null)
 const activePanel = ref('tasks') // tasks, knowledge, documents
+const showMobilePanelMenu = ref(false)
+const showMobilePanel = ref(false)
 const replyingTo = ref(null)
 const activeMessageIndex = ref(-1)
 const draggedMessageId = ref(null)
 const draggedTaskId = ref(null)
+const showRoomSettings = ref(false)
+const customInstructions = ref('')
+const roomName = ref('')
+const aiThinking = ref(false)
 
 // AI Features
 const showAIMenu = ref(false)
@@ -85,8 +92,6 @@ const messageReactions = ref({})
 const myReactions = ref({})
 
 // Smart Suggestions
-const smartSuggestions = ref([])
-const showSmartSuggestions = ref(false)
 
 // Notifications
 const notificationsEnabled = ref(false)
@@ -191,10 +196,27 @@ const fetchRoom = async () => {
     loading.value = true
     error.value = null
 
+    // Fetch room details
+    try {
+      const roomDetails = await roomService.getRoom(roomId.value)
+      room.value = roomDetails
+      customInstructions.value = roomDetails?.custom_ai_instructions || ''
+      roomName.value = roomDetails?.name || ''
+    } catch (err) {
+      console.error('Failed to load room info:', err)
+      room.value = {
+        id: roomId.value,
+        name: 'AI Room',
+        description: 'Collaborate with AI',
+      }
+    }
+
     // Fetch room messages
     const messagesResponse = await roomService.getRoomMessages(roomId.value, { limit: 50 })
     messages.value = (messagesResponse.items || messagesResponse || []).reverse()
     activeMessageIndex.value = messages.value.length - 1
+    await nextTick()
+    scrollToBottom()
 
     // Fetch tasks
     await fetchTasks()
@@ -210,13 +232,6 @@ const fetchRoom = async () => {
 
     // Fetch room members
     await fetchMembers()
-
-    // Set room info
-    room.value = {
-      id: roomId.value,
-      name: 'AI Room',
-      description: 'Collaborate with AI',
-    }
   } catch (err) {
     console.error('Failed to fetch room:', err)
     error.value = err.response?.data?.detail || 'Failed to load room'
@@ -380,7 +395,7 @@ const askAboutDocuments = async () => {
     messages.value.push({
       id: `doc-qa-${Date.now()}`,
       sender_type: 'ai',
-      sender_name: 'AI Assistant',
+      sender_name: 'Veya',
       content: `📚 **Document Q&A:**\n\n**Q:** ${result.question}\n\n**A:** ${result.answer}`,
       created_at: new Date().toISOString(),
     })
@@ -680,6 +695,99 @@ const deleteTask = async (task) => {
   }
 }
 
+const openRoomSettings = () => {
+  showRoomSettings.value = true
+}
+
+const saveRoomSettings = async () => {
+  try {
+    const updated = await roomService.updateRoomSettings(roomId.value, {
+      custom_ai_instructions: customInstructions.value,
+      name: roomName.value,
+    })
+    room.value = updated
+    showRoomSettings.value = false
+  } catch (err) {
+    console.error('Failed to save room settings:', err)
+    alert('Failed to save room settings')
+  }
+}
+
+const deleteRoom = async () => {
+  if (!confirm('Delete this room? This cannot be undone.')) return
+  try {
+    await roomService.deleteRoom(roomId.value)
+    router.push('/')
+  } catch (err) {
+    console.error('Failed to delete room:', err)
+    alert('Failed to delete room')
+  }
+}
+
+const escapeHtml = (text) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+const renderMessage = (text) => {
+  if (!text) return ''
+
+  // First, extract and protect mentions/commands before escaping
+  const mentions = []
+  const commands = []
+  let processed = text
+
+  // Extract @mentions (match @word including multi-word like "AI Assistant")
+  processed = processed.replace(/@([\w\s]+?)(?=\s|$|[.,!?])/g, (match, name) => {
+    const idx = mentions.length
+    mentions.push(name.trim())
+    return `__MENTION_${idx}__`
+  })
+
+  // Extract /commands
+  processed = processed.replace(/(\/\w+)/g, (match) => {
+    const idx = commands.length
+    commands.push(match)
+    return `__COMMAND_${idx}__`
+  })
+
+  // Now escape HTML
+  let safe = escapeHtml(processed)
+
+  // Code blocks ``` ```
+  safe = safe.replace(/```([\s\S]*?)```/g, (_m, code) => {
+    return `<pre><code>${code.trim()}</code></pre>`
+  })
+
+  // Bold **text**
+  safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  // Italic *text*
+  safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  // Inline code `code`
+  safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>')
+  // Links [text](url)
+  safe = safe.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>',
+  )
+  safe = safe.replace(/\n/g, '<br/>')
+
+  // Restore mentions with styling
+  mentions.forEach((name, idx) => {
+    safe = safe.replace(`__MENTION_${idx}__`, `<span class="token-blue">@${name}</span>`)
+  })
+
+  // Restore commands with styling
+  commands.forEach((cmd, idx) => {
+    safe = safe.replace(`__COMMAND_${idx}__`, `<span class="token-blue">${cmd}</span>`)
+  })
+
+  return safe
+}
+
 const detectAssigneeForText = (text) => {
   if (!text) return null
   const lowered = text.toLowerCase()
@@ -811,11 +919,21 @@ const handleKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       mentionActiveIndex.value = (mentionActiveIndex.value + 1) % filteredMentions.value.length
+      nextTick(() => {
+        const items = document.querySelectorAll('.mention-menu .mention-item')
+        const el = items[mentionActiveIndex.value]
+        el?.scrollIntoView({ block: 'nearest' })
+      })
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       mentionActiveIndex.value =
         (mentionActiveIndex.value - 1 + filteredMentions.value.length) %
         filteredMentions.value.length
+      nextTick(() => {
+        const items = document.querySelectorAll('.mention-menu .mention-item')
+        const el = items[mentionActiveIndex.value]
+        el?.scrollIntoView({ block: 'nearest' })
+      })
     } else if (e.key === 'Enter') {
       e.preventDefault()
       insertMention(filteredMentions.value[mentionActiveIndex.value])
@@ -830,11 +948,21 @@ const handleKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       commandActiveIndex.value = (commandActiveIndex.value + 1) % filteredCommands.value.length
+      nextTick(() => {
+        const items = document.querySelectorAll('.command-menu .mention-item')
+        const el = items[commandActiveIndex.value]
+        el?.scrollIntoView({ block: 'nearest' })
+      })
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       commandActiveIndex.value =
         (commandActiveIndex.value - 1 + filteredCommands.value.length) %
         filteredCommands.value.length
+      nextTick(() => {
+        const items = document.querySelectorAll('.command-menu .mention-item')
+        const el = items[commandActiveIndex.value]
+        el?.scrollIntoView({ block: 'nearest' })
+      })
     } else if (e.key === 'Enter') {
       e.preventDefault()
       selectCommand(filteredCommands.value[commandActiveIndex.value])
@@ -941,18 +1069,22 @@ const buildAIContext = (content, replyMessage = null) => {
   }
   if (kb) contextParts.push(`KB: ${kb}`)
   if (goalsText) contextParts.push(goalsText)
+  if (room.value?.custom_ai_instructions) {
+    contextParts.push(`Room instructions: ${room.value.custom_ai_instructions}`)
+  }
   return contextParts.join('\n\n')
 }
 
 const triggerAIReply = async (content) => {
   try {
     aiLoading.value = true
+    aiThinking.value = true
     const aiMessage = await aiService.chatWithAI(roomId.value, content)
     if (aiMessage?.content) {
       messages.value.push({
         id: `ai-${Date.now()}`,
         sender_type: 'ai',
-        sender_name: 'AI Assistant',
+        sender_name: 'Veya',
         content: aiMessage.content,
         created_at: new Date().toISOString(),
       })
@@ -963,6 +1095,7 @@ const triggerAIReply = async (content) => {
     console.error('Failed to get AI reply:', err)
   } finally {
     aiLoading.value = false
+    aiThinking.value = false
   }
 }
 
@@ -1220,6 +1353,14 @@ const connectWebSocket = () => {
             reactions[emoji] = (reactions[emoji] || 0) + 1
             messageReactions.value[msgId] = { ...reactions }
           }
+        } else if (data.type === 'room_updated') {
+          // Update room metadata (name, instructions, etc.) when owner renames or updates settings
+          if (data.room) {
+            room.value = data.room
+            // keep local roomName and customInstructions in sync
+            roomName.value = data.room.name || roomName.value
+            customInstructions.value = data.room.custom_ai_instructions || customInstructions.value
+          }
         } else if (data.type === 'presence') {
           // Handle presence updates
           if (data.online_users) {
@@ -1309,8 +1450,6 @@ onUnmounted(() => {
 watch(messages, () => {
   nextTick(() => scrollToBottom())
   activeMessageIndex.value = messages.value.length ? messages.value.length - 1 : -1
-  // Generate smart suggestions when new messages arrive
-  generateSmartSuggestions()
 })
 
 watch(filteredMentions, () => {
@@ -1358,8 +1497,14 @@ watch(filteredCommands, () => {
           </div>
           <div v-if="members.length > 5" class="online-avatar-more">+{{ members.length - 5 }}</div>
         </div>
-        <button class="btn btn-ghost btn-sm">Members</button>
-        <button class="btn btn-ghost btn-sm">Settings</button>
+        <button
+          class="btn btn-ghost btn-sm mobile-toggle"
+          @click="showMobilePanel = !showMobilePanel"
+        >
+          <AppIcon :name="showMobilePanel ? 'x' : 'menu'" size="sm" />
+          <span>{{ showMobilePanel ? 'Hide Side' : 'Show Side' }}</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" @click="openRoomSettings">Settings</button>
       </div>
     </div>
 
@@ -1431,7 +1576,7 @@ watch(filteredCommands, () => {
                     {{ getReplyTarget(message)?.content || 'Original message' }}
                   </div>
                 </div>
-                {{ message.content }}
+                <div v-html="renderMessage(message.content)"></div>
               </div>
               <div class="message-actions">
                 <button class="link-btn" @click="setReplyTarget(message)">Reply</button>
@@ -1531,12 +1676,16 @@ watch(filteredCommands, () => {
               <AppIcon v-else name="send" size="md" />
             </button>
           </div>
+          <div v-if="aiThinking" class="ai-thinking">
+            <span class="dot-pulse"></span>
+            <span>AI is thinking...</span>
+          </div>
         </div>
       </div>
 
       <!-- Side Panel -->
-      <div class="side-panel">
-        <div class="panel-tabs">
+      <div class="side-panel" :class="{ 'mobile-hidden': !showMobilePanel }">
+        <div class="panel-tabs desktop-tabs">
           <button
             class="panel-tab"
             :class="{ active: activePanel === 'tasks' }"
@@ -1546,11 +1695,40 @@ watch(filteredCommands, () => {
           </button>
           <button
             class="panel-tab"
-            :class="{ active: activePanel === 'documents' }"
-            @click="activePanel = 'documents'"
+            :class="{ active: activePanel === 'knowledge' }"
+            @click="activePanel = 'knowledge'"
           >
-            Docs
+            Knowledge
           </button>
+        </div>
+
+        <div class="panel-tabs mobile-tabs">
+          <button class="panel-tab" @click="showMobilePanelMenu = !showMobilePanelMenu">
+            {{ activePanel === 'tasks' ? 'Tasks' : 'Knowledge' }}
+            <AppIcon name="chevron-down" size="sm" />
+          </button>
+          <div v-if="showMobilePanelMenu" class="mobile-panel-menu">
+            <div
+              class="panel-tab"
+              :class="{ active: activePanel === 'tasks' }"
+              @click="
+                activePanel = 'tasks'
+                showMobilePanelMenu = false
+              "
+            >
+              Tasks
+            </div>
+            <div
+              class="panel-tab"
+              :class="{ active: activePanel === 'knowledge' }"
+              @click="
+                activePanel = 'knowledge'
+                showMobilePanelMenu = false
+              "
+            >
+              Knowledge
+            </div>
+          </div>
         </div>
 
         <div class="panel-content">
@@ -1854,101 +2032,97 @@ watch(filteredCommands, () => {
             </div>
           </div>
 
-          <!-- Documents Panel -->
-          <div v-if="activePanel === 'documents'" class="documents-panel">
-            <div class="panel-header">
-              <h3>Documents</h3>
-              <button @click="showDocUpload = !showDocUpload" class="btn btn-ghost btn-sm">
-                <AppIcon name="upload" size="xs" /> Upload
-              </button>
-            </div>
-
-            <div class="panel-body docs-panel-body">
-              <!-- Upload Section -->
-              <div v-if="showDocUpload" class="doc-upload-section">
-                <div class="doc-upload-area" @dragover.prevent @drop.prevent="handleDocDrop">
-                  <input
-                    type="file"
-                    ref="docFileInput"
-                    @change="handleDocumentUpload"
-                    accept=".pdf,.pptx"
-                    hidden
-                  />
-                  <div class="upload-placeholder" @click="$refs.docFileInput.click()">
-                    <AppIcon name="file-plus" size="lg" />
-                    <p>Drop PDF or PPTX here, or click to browse</p>
-                  </div>
+          <!-- Knowledge Panel (includes Documents) -->
+          <div v-if="activePanel === 'knowledge'" class="knowledge-panel">
+            <div class="panel-body kb-panel-body">
+              <!-- Summary Section -->
+              <div class="kb-section">
+                <div class="kb-section-header">
+                  <h4>Summary</h4>
                 </div>
-                <div v-if="uploadingDoc" class="doc-upload-progress">
-                  <div class="progress-bar">
-                    <div class="progress-fill" :style="{ width: docUploadProgress + '%' }"></div>
-                  </div>
-                  <span>{{ docUploadProgress }}%</span>
-                </div>
+                <p class="kb-summary-text">
+                  {{ knowledgeBase?.summary || knowledgeBase?.content || 'No summary available.' }}
+                </p>
               </div>
 
-              <!-- Search Section -->
-              <div class="doc-search-section">
-                <input
-                  v-model="docSearchQuery"
-                  type="text"
-                  placeholder="Search documents..."
-                  class="doc-search-input"
-                  @keyup.enter="searchDocuments"
-                />
+              <!-- Key Decisions -->
+              <div class="kb-section" v-if="knowledgeBase?.key_decisions?.length">
+                <div class="kb-section-header">
+                  <h4>Key Decisions</h4>
+                </div>
+                <ul class="kb-list">
+                  <li v-for="(decision, idx) in knowledgeBase.key_decisions" :key="idx">
+                    <AppIcon name="check-circle" size="xs" />
+                    {{ decision }}
+                  </li>
+                </ul>
               </div>
 
-              <!-- Search Results -->
-              <div v-if="docSearchResults.length" class="doc-search-results">
-                <h4>Search Results</h4>
-                <div
-                  v-for="result in docSearchResults"
-                  :key="result.document_id"
-                  class="doc-result-item"
-                >
-                  <div class="doc-result-header">
+              <!-- Links -->
+              <div class="kb-section" v-if="knowledgeBase?.important_links?.length">
+                <div class="kb-section-header">
+                  <h4>Links</h4>
+                </div>
+                <ul class="kb-list kb-links-list">
+                  <li v-for="(link, idx) in knowledgeBase.important_links" :key="idx">
+                    <a :href="link.url" target="_blank" rel="noopener" class="kb-link">
+                      <AppIcon name="link" size="xs" />
+                      {{ link.title }}
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Documents Section (merged) -->
+              <div class="kb-section kb-documents-section">
+                <div class="kb-section-header">
+                  <h4>Documents</h4>
+                  <button @click="showDocUpload = !showDocUpload" class="btn btn-ghost btn-xs">
+                    <AppIcon name="upload" size="xs" /> Upload
+                  </button>
+                </div>
+
+                <!-- Upload Area -->
+                <div v-if="showDocUpload" class="doc-upload-section">
+                  <div class="doc-upload-area" @dragover.prevent @drop.prevent="handleDocDrop">
+                    <input
+                      type="file"
+                      ref="docFileInput"
+                      @change="handleDocumentUpload"
+                      accept=".pdf,.pptx"
+                      hidden
+                    />
+                    <div class="upload-placeholder" @click="$refs.docFileInput.click()">
+                      <AppIcon name="file-plus" size="md" />
+                      <p>Drop PDF or PPTX here</p>
+                    </div>
+                  </div>
+                  <div v-if="uploadingDoc" class="doc-upload-progress">
+                    <div class="progress-bar">
+                      <div class="progress-fill" :style="{ width: docUploadProgress + '%' }"></div>
+                    </div>
+                    <span>{{ docUploadProgress }}%</span>
+                  </div>
+                </div>
+
+                <!-- Documents List -->
+                <div v-if="documents.length" class="doc-items compact">
+                  <div v-for="doc in documents" :key="doc._id" class="doc-item-compact">
                     <AppIcon
-                      :name="result.file_type === 'pdf' ? 'file-text' : 'presentation'"
+                      :name="doc.file_type === 'pdf' ? 'file-text' : 'presentation'"
                       size="sm"
                     />
-                    <span class="doc-result-filename">{{ result.filename }}</span>
-                    <span class="doc-result-score"
-                      >{{ Math.round(result.similarity * 100) }}% match</span
+                    <span class="doc-item-name">{{ doc.filename }}</span>
+                    <button
+                      class="chip-btn-xs danger"
+                      @click="deleteDocument(doc.id)"
+                      title="Delete"
                     >
-                  </div>
-                  <p class="doc-result-content">{{ result.content }}</p>
-                </div>
-              </div>
-
-              <!-- Documents List -->
-              <div class="doc-list">
-                <h4>All Documents</h4>
-                <div v-if="documents.length" class="doc-items">
-                  <div v-for="doc in documents" :key="doc._id" class="doc-item">
-                    <div class="doc-item-icon">
-                      <AppIcon
-                        :name="doc.file_type === 'pdf' ? 'file-text' : 'presentation'"
-                        size="md"
-                      />
-                    </div>
-                    <div class="doc-item-info">
-                      <span class="doc-item-name">{{ doc.filename }}</span>
-                      <span class="doc-item-meta">
-                        {{ formatFileSize(doc.file_size) }} · {{ doc.chunk_count }} chunks
-                        <span v-if="doc.status === 'processing'" class="doc-processing">
-                          <AppIcon name="loader" size="xs" class="spin" /> Processing...
-                        </span>
-                        <span v-else-if="doc.status === 'completed'" class="doc-ready">Ready</span>
-                        <span v-else-if="doc.status === 'failed'" class="doc-failed">Failed</span>
-                      </span>
-                    </div>
-                    <div class="doc-item-actions">
-                      <button class="chip-btn" @click="mentionDocument(doc)">Mention</button>
-                      <button class="chip-btn danger" @click="deleteDocument(doc.id)">Delete</button>
-                    </div>
+                      <AppIcon name="x" size="xs" />
+                    </button>
                   </div>
                 </div>
-                <p v-else class="doc-empty">No documents uploaded yet.</p>
+                <p v-else class="doc-empty-small">No documents yet</p>
               </div>
             </div>
           </div>
@@ -1990,6 +2164,46 @@ watch(filteredCommands, () => {
           <button @click="createTask" :disabled="!newTaskTitle.trim()" class="btn btn-primary">
             Create Task
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Room Settings -->
+    <div v-if="showRoomSettings" class="modal-overlay" @click.self="showRoomSettings = false">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Room Settings</h3>
+          <button @click="showRoomSettings = false" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Room Name</label>
+            <input
+              v-model="roomName"
+              type="text"
+              class="task-input"
+              placeholder="Room name"
+              maxlength="100"
+            />
+          </div>
+          <div class="form-group">
+            <label>Custom AI Instructions</label>
+            <textarea
+              v-model="customInstructions"
+              rows="4"
+              class="task-input"
+              placeholder="Describe how the AI should behave in this room..."
+            ></textarea>
+          </div>
+          <div class="form-group danger-zone">
+            <label>Danger Zone</label>
+            <p class="danger-desc">Deleting the room will remove messages, tasks, and documents.</p>
+            <button class="btn btn-danger" @click="deleteRoom">Delete Room</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showRoomSettings = false" class="btn btn-ghost">Cancel</button>
+          <button @click="saveRoomSettings" class="btn btn-primary">Save</button>
         </div>
       </div>
     </div>
@@ -2169,6 +2383,16 @@ watch(filteredCommands, () => {
   color: var(--text-primary);
 }
 
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
 /* Room Content */
 .room-content {
   flex: 1;
@@ -2188,10 +2412,10 @@ watch(filteredCommands, () => {
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-6);
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 .empty-messages {
@@ -2238,12 +2462,12 @@ watch(filteredCommands, () => {
 /* Messages */
 .message {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
   animation: messageSlideIn 0.3s ease;
   opacity: 0;
   animation-fill-mode: forwards;
   border-radius: var(--radius-lg);
-  padding: var(--space-2);
+  padding: var(--space-1) var(--space-2);
 }
 
 @keyframes messageSlideIn {
@@ -2356,9 +2580,46 @@ watch(filteredCommands, () => {
   box-shadow: var(--shadow-sm);
 }
 
+.message-body a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.token-blue {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.message-body code {
+  background: var(--surface);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+}
+
+.message-body pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0.75rem 0;
+}
+
+.message-body ul,
+.message-body ol {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
 .message:hover .message-body {
-  border-color: var(--primary-muted);
-  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+  transform: translateY(-1px);
 }
 
 .message-ai .message-body {
@@ -2415,20 +2676,23 @@ watch(filteredCommands, () => {
 
 .reactions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .reaction-btn {
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: var(--radius-full);
-  padding: 4px 8px;
+  padding: 2px 6px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
+  gap: 4px;
+  font-size: 0.75rem;
+  flex-shrink: 0;
 }
 
 .reaction-btn:hover {
@@ -2536,6 +2800,31 @@ watch(filteredCommands, () => {
   background: var(--background);
 }
 
+.desktop-tabs {
+  display: flex;
+}
+
+.mobile-tabs {
+  display: none;
+  position: relative;
+}
+
+.mobile-panel-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.mobile-hidden {
+  display: none;
+}
+
 .panel-tab {
   flex: 1;
   padding: var(--space-3);
@@ -2548,17 +2837,21 @@ watch(filteredCommands, () => {
   transition: all 0.2s ease;
   border-bottom: 2px solid transparent;
   position: relative;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
 .panel-tab:hover {
   color: var(--text-primary);
-  background: var(--surface);
+  background: linear-gradient(135deg, var(--surface), var(--surface-elevated));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.06);
 }
 
 .panel-tab.active {
   color: var(--primary);
   border-bottom-color: var(--primary);
   background: var(--surface-elevated);
+  box-shadow: inset 0 -2px 0 var(--primary-muted);
 }
 
 .panel-content {
@@ -2629,22 +2922,264 @@ watch(filteredCommands, () => {
 
 /* Responsive */
 @media (max-width: 1024px) {
+  .room-content {
+    flex-direction: column;
+  }
+
   .side-panel {
+    display: block;
+    width: 100%;
+    max-height: 40vh;
+    min-height: 200px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    order: 2;
+  }
+
+  .chat-panel {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .panel-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--surface-elevated);
+  }
+
+  .desktop-tabs {
     display: none;
+  }
+
+  .mobile-tabs {
+    display: flex;
+  }
+
+  .room-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .room-header-info h2 {
+    font-size: 1.05rem;
+  }
+
+  .room-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .task-board {
+    flex-direction: column;
+  }
+
+  .task-column {
+    width: 100%;
   }
 }
 
 @media (max-width: 768px) {
   .room-header {
-    padding: var(--space-3) var(--space-4);
+    padding: 0.65rem 1rem;
+    margin-top: 2.5rem; /* Space for mobile menu button */
+  }
+
+  .room-avatar-sm {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+  }
+
+  .room-title {
+    font-size: 1rem;
+  }
+
+  .room-status-bar {
+    font-size: 0.7rem;
   }
 
   .messages-container {
-    padding: var(--space-4);
+    padding: 0.5rem 0.75rem;
+    gap: 0.25rem;
+  }
+
+  .message {
+    gap: 0.5rem;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+  }
+
+  .message-body {
+    padding: 0.75rem;
+    font-size: 0.9rem;
   }
 
   .message-input-container {
-    padding: var(--space-3) var(--space-4);
+    padding: 0.75rem 1rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0));
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-elevated);
+    border-top: 1px solid var(--border);
+  }
+
+  .message-input-wrapper {
+    padding: var(--space-2);
+    border-radius: var(--radius-lg);
+  }
+
+  .message-input {
+    padding: var(--space-2) var(--space-3);
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+
+  .send-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .side-panel {
+    max-height: 35vh;
+  }
+
+  .panel-content {
+    padding: var(--space-3);
+  }
+
+  .panel-header h3 {
+    font-size: 0.9rem;
+  }
+
+  .task-card {
+    padding: var(--space-2);
+  }
+
+  .task-card-footer {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .task-assignee {
+    width: 100%;
+  }
+
+  .task-controls {
+    width: 100%;
+  }
+
+  .assignee-select,
+  .task-status-select {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px 10px;
+  }
+
+  .task-card-actions {
+    justify-content: flex-start;
+    margin-top: var(--space-2);
+  }
+
+  .chip-btn {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    min-height: 36px; /* Touch-friendly */
+  }
+
+  .modal-overlay {
+    padding: 0.5rem;
+    align-items: flex-end;
+  }
+
+  .modal-content {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .modal-body {
+    padding: var(--space-4);
+  }
+
+  .task-input {
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+
+  .mention-menu,
+  .command-menu {
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: 70px;
+    max-height: 180px;
+  }
+
+  .online-avatars {
+    display: none;
+  }
+
+  .reactions {
+    gap: 4px;
+  }
+
+  .reaction-btn {
+    padding: 4px 6px;
+    font-size: 0.75rem;
+  }
+
+  .doc-upload-area {
+    padding: var(--space-4);
+  }
+
+  .doc-item {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .doc-item-actions {
+    width: 100%;
+    margin-top: var(--space-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .room-header-info {
+    gap: var(--space-2);
+  }
+
+  .room-header-actions {
+    gap: var(--space-2);
+  }
+
+  .btn-ghost.btn-sm {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .side-panel {
+    max-height: 30vh;
+  }
+
+  .panel-tab {
+    padding: var(--space-2);
+    font-size: 0.8rem;
+  }
+
+  .kb-section {
+    padding: var(--space-3);
+  }
+
+  .kb-summary-text {
+    font-size: 0.85rem;
   }
 }
 
@@ -3088,7 +3623,10 @@ watch(filteredCommands, () => {
 }
 
 .doc-item:hover {
-  background: var(--primary-soft);
+  background: linear-gradient(135deg, var(--surface), var(--surface-elevated));
+  border: 1px solid var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.12);
 }
 
 .doc-item-icon {
@@ -3410,6 +3948,19 @@ watch(filteredCommands, () => {
   border-color: var(--danger);
 }
 
+.danger-zone {
+  border: 1px solid var(--danger);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.danger-desc {
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+  font-size: 0.85rem;
+}
+
 .task-title-wrap {
   flex: 1;
   display: flex;
@@ -3608,6 +4159,39 @@ watch(filteredCommands, () => {
   flex-shrink: 0;
 }
 
+.ai-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: inline-block;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+}
+
 .replying-pill {
   display: flex;
   align-items: center;
@@ -3634,5 +4218,92 @@ watch(filteredCommands, () => {
 
 .messages-container:focus {
   outline: 2px solid var(--primary-muted);
+}
+
+/* Compact document items in KB panel */
+.kb-documents-section {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+
+.kb-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-xs {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+}
+
+.doc-items.compact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.doc-item-compact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.doc-item-compact .doc-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.chip-btn-xs {
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-btn-xs:hover {
+  background: var(--danger-muted, rgba(239, 68, 68, 0.1));
+  color: var(--danger);
+}
+
+.doc-empty-small {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: var(--space-2) 0;
+}
+
+/* Mobile panel toggle */
+.mobile-toggle {
+  display: none;
+}
+
+.side-panel.mobile-hidden {
+  display: block;
+}
+
+@media (max-width: 1024px) {
+  .mobile-toggle {
+    display: inline-flex;
+  }
+
+  .side-panel.mobile-hidden {
+    display: none;
+  }
 }
 </style>

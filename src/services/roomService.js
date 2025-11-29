@@ -34,4 +34,18 @@ export default {
     const response = await apiClient.post(`/rooms/${roomId}/messages`, messageData)
     return response.data
   },
+
+  async getRoom(roomId) {
+    const response = await apiClient.get(`/rooms/${roomId}`)
+    return response.data
+  },
+
+  async updateRoomSettings(roomId, settings) {
+    const response = await apiClient.patch(`/rooms/${roomId}/settings`, settings)
+    return response.data
+  },
+
+  async deleteRoom(roomId) {
+    await apiClient.delete(`/rooms/${roomId}`)
+  },
 }

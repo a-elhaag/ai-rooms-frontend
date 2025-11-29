@@ -114,20 +114,11 @@ router.afterEach(() => {
             <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">My Tasks</span>
           </transition>
         </RouterLink>
+      </nav>
 
-        <RouterLink
-          to="/knowledge"
-          class="nav-item"
-          :class="{ active: currentRouteName === 'knowledge' }"
-        >
-          <span class="nav-icon">
-            <AppIcon name="book" size="md" />
-          </span>
-          <transition name="slide-fade">
-            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">Knowledge</span>
-          </transition>
-        </RouterLink>
+      <div class="sidebar-spacer"></div>
 
+      <div class="sidebar-bottom-nav">
         <RouterLink
           to="/settings"
           class="nav-item"
@@ -140,20 +131,7 @@ router.afterEach(() => {
             <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">Settings</span>
           </transition>
         </RouterLink>
-
-        <RouterLink
-          to="/about"
-          class="nav-item"
-          :class="{ active: currentRouteName === 'about' }"
-        >
-          <span class="nav-icon">
-            <AppIcon name="info" size="md" />
-          </span>
-          <transition name="slide-fade">
-            <span v-if="!sidebarCollapsed || mobileMenuOpen" class="nav-label">About</span>
-          </transition>
-        </RouterLink>
-      </nav>
+      </div>
 
       <div class="sidebar-footer">
         <!-- Show user info if logged in -->
@@ -229,24 +207,34 @@ router.afterEach(() => {
 .mobile-menu-btn {
   display: none;
   position: fixed;
-  top: 1rem;
-  left: 1rem;
+  top: max(1rem, env(safe-area-inset-top, 1rem));
+  left: max(1rem, env(safe-area-inset-left, 1rem));
   z-index: 1001;
   background: var(--surface-elevated);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem;
+  border-radius: 12px;
+  padding: 0.65rem;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   color: var(--text-primary);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-menu-btn:active {
+  transform: scale(0.95);
+  background: var(--surface-hover);
 }
 
 .mobile-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 999;
+  animation: fadeIn 0.2s ease;
 }
 
 /* Sidebar */
@@ -307,7 +295,6 @@ router.afterEach(() => {
 
 /* Navigation */
 .sidebar-nav {
-  flex: 1;
   padding: var(--space-4) var(--space-3);
   overflow-y: auto;
   display: flex;
@@ -369,6 +356,19 @@ router.afterEach(() => {
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
+}
+
+/* Sidebar Spacer - pushes bottom nav down */
+.sidebar-spacer {
+  flex: 1;
+}
+
+/* Bottom Nav - Settings at bottom */
+.sidebar-bottom-nav {
+  padding: 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
 }
 
 /* Sidebar Footer */
@@ -552,6 +552,8 @@ router.afterEach(() => {
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mobile-overlay {
@@ -562,23 +564,53 @@ router.afterEach(() => {
     position: fixed;
     left: 0;
     top: 0;
+    bottom: 0;
     z-index: 1000;
     transform: translateX(-100%);
-    width: 260px;
+    width: 100vw;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
   .sidebar.mobile-open {
     transform: translateX(0);
+    box-shadow: var(--shadow-xl);
   }
 
   .sidebar.collapsed {
-    width: 260px; /* Don't collapse on mobile, just hide */
+    width: 100vw; /* Don't collapse on mobile, just hide */
   }
 
   .main-content {
     margin-left: 0;
-    padding-top: 4rem; /* Space for mobile menu btn */
+    padding-top: calc(3.5rem + env(safe-area-inset-top, 0)); /* Space for mobile menu btn */
+    height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-footer {
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0));
+  }
+
+  .nav-item {
+    padding: var(--space-3) var(--space-4);
+    min-height: 48px; /* Touch-friendly target */
+  }
+
+  .collapse-btn {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100vw;
+  }
+
+  .logo-text {
+    font-size: 1.1rem;
   }
 }
 </style>

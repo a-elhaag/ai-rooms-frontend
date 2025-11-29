@@ -528,25 +528,139 @@ const toggleTaskComplete = async (task) => {
 
 @media (max-width: 768px) {
   .view-header {
-    padding: 1rem 1.25rem;
+    padding: 1rem;
+    padding-top: calc(3rem + env(safe-area-inset-top, 0)); /* Space for mobile menu */
   }
 
   .header-content {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .view-title {
+    font-size: 1.4rem;
+  }
+
+  .view-subtitle {
+    font-size: 0.8rem;
+  }
+
+  .btn-new {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
   }
 
   .stats-row {
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .stats-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .stat-card {
+    min-width: 100px;
+    flex-shrink: 0;
+    padding: 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
   }
 
   .view-content {
-    padding: 0.75rem 1.25rem 1.5rem;
+    padding: 0.75rem 1rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
+  }
+
+  .task-card {
+    padding: 0.85rem 1rem;
+  }
+
+  .task-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .task-title {
+    font-size: 0.9rem;
+  }
+
+  .task-meta {
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .task-actions {
     opacity: 1;
+  }
+
+  .task-checkbox input {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .view-header {
+    padding: 0.75rem;
+    padding-top: calc(2.75rem + env(safe-area-inset-top, 0));
+  }
+
+  .view-title {
+    font-size: 1.25rem;
+  }
+
+  .stats-row {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .stat-card {
+    min-width: 85px;
+    padding: 0.6rem;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+  }
+
+  .view-content {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .task-card {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .priority-badge {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.65rem;
+  }
+
+  .empty-illustration {
+    width: 90px;
+    height: 90px;
+  }
+
+  .empty-icon-wrap {
+    width: 40px;
+    height: 40px;
+  }
+
+  .empty-state h3 {
+    font-size: 1.1rem;
   }
 }
 </style>

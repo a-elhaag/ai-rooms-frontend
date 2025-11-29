@@ -956,21 +956,115 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .top-bar {
-    padding: 0.9rem 1.1rem;
-    flex-wrap: wrap;
+    padding: 0.9rem 1rem;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.75rem;
   }
 
+  .top-bar-left {
+    margin-bottom: 0.25rem;
+  }
+
+  .brand-tagline {
+    display: none;
+  }
+
   .top-bar-right {
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .search-shell {
+    width: 100%;
+    padding: 0.5rem 1rem;
+  }
+
+  .search-input {
+    width: 100%;
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+
+  .btn-join,
+  .btn-new {
+    width: 100%;
+    justify-content: center;
+    padding: 0.65rem 1rem;
+    min-height: 44px; /* Touch-friendly */
   }
 
   .home-main {
-    padding: 1.1rem 1.1rem 1.3rem;
+    padding: 1rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
+  }
+
+  .summary-row {
+    flex-direction: column;
+  }
+
+  .summary-card {
+    min-width: auto;
+    width: 100%;
   }
 
   .rooms-grid {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .room-card-light {
+    padding: 0.85rem;
+  }
+
+  .room-avatar-light {
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+
+  .modal-light {
+    margin: 1rem;
+    max-width: calc(100% - 2rem);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+
+  .field-input {
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-title {
+    font-size: 1rem;
+  }
+
+  .brand-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .illustration {
+    width: 100px;
+    height: 100px;
+  }
+
+  .illustration-orbit {
+    width: 60px;
+    height: 60px;
+  }
+
+  .illustration-core {
+    width: 36px;
+    height: 36px;
+  }
+
+  .state-empty h2 {
+    font-size: 1.1rem;
+  }
+
+  .state-empty p {
+    font-size: 0.85rem;
   }
 }
 </style>

@@ -1,54 +1,112 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
+import api from '@/api'
 
 const user = ref({
-  username: 'User',
-  email: 'user@example.com',
+  username: '',
+  email: '',
 })
 
-const theme = ref('light')
-const aiStyle = ref('balanced')
-const aiSuggestions = ref(true)
-const autoSummarize = ref(true)
+const newUsername = ref('')
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
 
-// Initialize theme from localStorage or system preference
-onMounted(() => {
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme) {
-    theme.value = savedTheme
-  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    theme.value = 'auto'
-  }
-  applyTheme()
-})
+const saving = ref(false)
+const message = ref({ text: '', type: '' })
 
-// Watch for theme changes and apply
-watch(theme, () => {
-  applyTheme()
-  localStorage.setItem('theme', theme.value)
-})
-
-function applyTheme() {
-  const html = document.documentElement
-  if (theme.value === 'dark') {
-    html.setAttribute('data-theme', 'dark')
-  } else if (theme.value === 'light') {
-    html.removeAttribute('data-theme')
-  } else {
-    // Auto: use system preference
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      html.setAttribute('data-theme', 'dark')
-    } else {
-      html.removeAttribute('data-theme')
-    }
+// Load user data
+const loadUser = () => {
+  const storedUser = localStorage.getItem('user')
+  if (storedUser) {
+    const userData = JSON.parse(storedUser)
+    user.value = userData
+    newUsername.value = userData.username
   }
 }
 
-const saveSettings = () => {
-  // TODO: Save to backend
-  console.log('Settings saved')
+onMounted(() => {
+  loadUser()
+})
+
+const showMessage = (text, type = 'success') => {
+  message.value = { text, type }
+  setTimeout(() => {
+    message.value = { text: '', type: '' }
+  }, 3000)
+}
+
+const saveProfile = async () => {
+  if (saving.value) return
+
+  if (!newUsername.value.trim()) {
+    showMessage('Username is required', 'error')
+    return
+  }
+
+  saving.value = true
+  try {
+    const response = await api.patch('/auth/profile', {
+      username: newUsername.value.trim(),
+    })
+
+    // Update local storage
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}')
+    storedUser.username = newUsername.value.trim()
+    localStorage.setItem('user', JSON.stringify(storedUser))
+    user.value.username = newUsername.value.trim()
+
+    showMessage('Profile updated successfully')
+  } catch (error) {
+    showMessage(error.response?.data?.detail || 'Failed to update profile', 'error')
+  } finally {
+    saving.value = false
+  }
+}
+
+const changePassword = async () => {
+  if (saving.value) return
+
+  if (!currentPassword.value) {
+    showMessage('Current password is required', 'error')
+    return
+  }
+
+  if (!newPassword.value) {
+    showMessage('New password is required', 'error')
+    return
+  }
+
+  if (newPassword.value !== confirmPassword.value) {
+    showMessage('Passwords do not match', 'error')
+    return
+  }
+
+  if (newPassword.value.length < 6) {
+    showMessage('Password must be at least 6 characters', 'error')
+    return
+  }
+
+  saving.value = true
+  try {
+    await api.patch('/auth/password', {
+      current_password: currentPassword.value,
+      new_password: newPassword.value,
+    })
+
+    // Clear password fields
+    currentPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+
+    showMessage('Password changed successfully')
+  } catch (error) {
+    showMessage(error.response?.data?.detail || 'Failed to change password', 'error')
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -69,6 +127,14 @@ const saveSettings = () => {
 
     <!-- Settings Content -->
     <div class="view-content">
+      <!-- Status Message -->
+      <transition name="fade">
+        <div v-if="message.text" class="status-message" :class="message.type">
+          <AppIcon :name="message.type === 'error' ? 'alert-circle' : 'check-circle'" size="sm" />
+          {{ message.text }}
+        </div>
+      </transition>
+
       <!-- Profile Section -->
       <section class="settings-section">
         <div class="section-header">
@@ -77,162 +143,79 @@ const saveSettings = () => {
           </div>
           <div>
             <h2 class="section-title">Profile</h2>
-            <p class="section-desc">Your personal information</p>
-          </div>
-        </div>
-
-        <div class="settings-card">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Username</label>
-              <input type="text" class="form-input" v-model="user.username" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Email</label>
-              <input type="email" class="form-input" v-model="user.email" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Appearance Section -->
-      <section class="settings-section">
-        <div class="section-header">
-          <div class="section-icon">
-            <AppIcon name="sun" size="sm" />
-          </div>
-          <div>
-            <h2 class="section-title">Appearance</h2>
-            <p class="section-desc">Customize how the app looks</p>
-          </div>
-        </div>
-
-        <div class="settings-card">
-          <div class="theme-options">
-            <button
-              class="theme-option"
-              :class="{ active: theme === 'light' }"
-              @click="theme = 'light'"
-            >
-              <div class="theme-preview theme-light">
-                <div class="preview-sidebar"></div>
-                <div class="preview-content"></div>
-              </div>
-              <div class="theme-label">
-                <AppIcon name="sun" size="sm" />
-                <span>Light</span>
-              </div>
-            </button>
-            <button
-              class="theme-option"
-              :class="{ active: theme === 'dark' }"
-              @click="theme = 'dark'"
-            >
-              <div class="theme-preview theme-dark">
-                <div class="preview-sidebar"></div>
-                <div class="preview-content"></div>
-              </div>
-              <div class="theme-label">
-                <AppIcon name="moon" size="sm" />
-                <span>Dark</span>
-              </div>
-            </button>
-            <button
-              class="theme-option"
-              :class="{ active: theme === 'auto' }"
-              @click="theme = 'auto'"
-            >
-              <div class="theme-preview theme-auto">
-                <div class="preview-sidebar"></div>
-                <div class="preview-content"></div>
-              </div>
-              <div class="theme-label">
-                <AppIcon name="monitor" size="sm" />
-                <span>Auto</span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- AI Settings Section -->
-      <section class="settings-section">
-        <div class="section-header">
-          <div class="section-icon ai-icon">
-            <AppIcon name="sparkle" size="sm" />
-          </div>
-          <div>
-            <h2 class="section-title">AI Settings</h2>
-            <p class="section-desc">Configure AI behavior</p>
+            <p class="section-desc">Update your username</p>
           </div>
         </div>
 
         <div class="settings-card">
           <div class="form-group">
-            <label class="form-label">Response Style</label>
-            <div class="radio-group">
-              <label class="radio-option" :class="{ active: aiStyle === 'concise' }">
-                <input type="radio" v-model="aiStyle" value="concise" />
-                <div class="radio-content">
-                  <span class="radio-title">Concise</span>
-                  <span class="radio-desc">Short, to-the-point responses</span>
-                </div>
-              </label>
-              <label class="radio-option" :class="{ active: aiStyle === 'balanced' }">
-                <input type="radio" v-model="aiStyle" value="balanced" />
-                <div class="radio-content">
-                  <span class="radio-title">Balanced</span>
-                  <span class="radio-desc">Mix of detail and brevity</span>
-                </div>
-              </label>
-              <label class="radio-option" :class="{ active: aiStyle === 'detailed' }">
-                <input type="radio" v-model="aiStyle" value="detailed" />
-                <div class="radio-content">
-                  <span class="radio-title">Detailed</span>
-                  <span class="radio-desc">Comprehensive explanations</span>
-                </div>
-              </label>
-            </div>
+            <label class="form-label">Username</label>
+            <input
+              type="text"
+              class="form-input"
+              v-model="newUsername"
+              placeholder="Enter username"
+            />
           </div>
-
-          <div class="toggle-group">
-            <label class="toggle-option">
-              <div class="toggle-info">
-                <span class="toggle-title">AI Suggestions</span>
-                <span class="toggle-desc">Get proactive suggestions from AI</span>
-              </div>
-              <div
-                class="toggle-switch"
-                :class="{ on: aiSuggestions }"
-                @click="aiSuggestions = !aiSuggestions"
-              >
-                <div class="toggle-knob"></div>
-              </div>
-            </label>
-            <label class="toggle-option">
-              <div class="toggle-info">
-                <span class="toggle-title">Auto-summarize</span>
-                <span class="toggle-desc">Automatically summarize long conversations</span>
-              </div>
-              <div
-                class="toggle-switch"
-                :class="{ on: autoSummarize }"
-                @click="autoSummarize = !autoSummarize"
-              >
-                <div class="toggle-knob"></div>
-              </div>
-            </label>
+          <div class="form-actions">
+            <AppButton variant="primary" @click="saveProfile" :disabled="saving">
+              <AppIcon name="save" size="sm" />
+              {{ saving ? 'Saving...' : 'Save Profile' }}
+            </AppButton>
           </div>
         </div>
       </section>
 
-      <!-- Save Button -->
-      <div class="save-bar">
-        <AppButton variant="primary" @click="saveSettings">
-          <AppIcon name="save" size="sm" />
-          Save Changes
-        </AppButton>
-      </div>
+      <!-- Password Section -->
+      <section class="settings-section">
+        <div class="section-header">
+          <div class="section-icon security-icon">
+            <AppIcon name="lock" size="sm" />
+          </div>
+          <div>
+            <h2 class="section-title">Change Password</h2>
+            <p class="section-desc">Update your password</p>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="form-group">
+            <label class="form-label">Current Password</label>
+            <input
+              type="password"
+              class="form-input"
+              v-model="currentPassword"
+              placeholder="Enter current password"
+            />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">New Password</label>
+              <input
+                type="password"
+                class="form-input"
+                v-model="newPassword"
+                placeholder="Enter new password"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm Password</label>
+              <input
+                type="password"
+                class="form-input"
+                v-model="confirmPassword"
+                placeholder="Confirm new password"
+              />
+            </div>
+          </div>
+          <div class="form-actions">
+            <AppButton variant="primary" @click="changePassword" :disabled="saving">
+              <AppIcon name="lock" size="sm" />
+              {{ saving ? 'Changing...' : 'Change Password' }}
+            </AppButton>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -260,8 +243,8 @@ const saveSettings = () => {
 }
 
 .header-icon {
-  width: 48px;
-  height: 48px;
+  width: 3rem;
+  height: 3rem;
   background: linear-gradient(135deg, var(--primary), var(--primary-soft));
   border-radius: 14px;
   display: flex;
@@ -272,7 +255,7 @@ const saveSettings = () => {
 }
 
 .view-title {
-  font-size: 1.75rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 0.15rem;
@@ -280,25 +263,62 @@ const saveSettings = () => {
 
 .view-subtitle {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .view-content {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem 2rem 2rem;
-  max-width: 720px;
+  padding: 1.25rem 1.5rem 2rem;
+  max-width: 48rem;
+}
+
+/* Status Message */
+.status-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-message.success {
+  background: var(--success-muted, rgba(34, 197, 94, 0.1));
+  color: var(--success, #22c55e);
+  border: 1px solid var(--success, #22c55e);
+}
+
+.status-message.error {
+  background: var(--error-muted, rgba(239, 68, 68, 0.1));
+  color: var(--error, #ef4444);
+  border: 1px solid var(--error, #ef4444);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .settings-section {
   margin-bottom: 2rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--surface);
 }
 
 .section-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
 }
 
 .section-icon {
@@ -312,7 +332,7 @@ const saveSettings = () => {
   color: var(--primary);
 }
 
-.section-icon.ai-icon {
+.section-icon.security-icon {
   background: var(--accent-muted);
   color: var(--accent);
 }
@@ -332,7 +352,7 @@ const saveSettings = () => {
   background: var(--surface-elevated);
   border: 1px solid var(--border);
   border-radius: 1rem;
-  padding: 1.25rem;
+  padding: 1.1rem;
   transition: box-shadow 0.2s ease;
 }
 
@@ -380,200 +400,23 @@ const saveSettings = () => {
   box-shadow: 0 0 0 3px var(--primary-muted);
 }
 
-.theme-options {
-  display: flex;
-  gap: 1rem;
-}
-
-.theme-option {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 1rem;
-  border: 2px solid var(--border);
-  border-radius: 1rem;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.theme-option:hover {
-  border-color: var(--primary-soft);
-}
-
-.theme-option.active {
-  border-color: var(--primary);
-  background: var(--primary-muted);
-}
-
-.theme-preview {
-  width: 100%;
-  height: 48px;
-  border-radius: 8px;
-  display: flex;
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-
-.preview-sidebar {
-  width: 20%;
-}
-
-.preview-content {
-  flex: 1;
-}
-
-.theme-light .preview-sidebar {
-  background: #f3f4f6;
-}
-
-.theme-light .preview-content {
-  background: #ffffff;
-}
-
-.theme-dark .preview-sidebar {
-  background: #1e293b;
-}
-
-.theme-dark .preview-content {
-  background: #0f172a;
-}
-
-.theme-auto .preview-sidebar {
-  background: linear-gradient(180deg, #f3f4f6 50%, #1e293b 50%);
-}
-
-.theme-auto .preview-content {
-  background: linear-gradient(180deg, #ffffff 50%, #0f172a 50%);
-}
-
-.theme-label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.theme-option.active .theme-label {
-  color: var(--primary);
-}
-
-.radio-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.radio-option {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.radio-option:hover {
-  border-color: var(--primary-soft);
+.form-input:disabled {
   background: var(--surface);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
-.radio-option.active {
-  border-color: var(--primary);
-  background: var(--primary-muted);
-}
-
-.radio-option input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--primary);
-}
-
-.radio-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.radio-title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.radio-desc {
+.form-hint {
+  display: block;
   font-size: 0.75rem;
   color: var(--text-muted);
+  margin-top: 0.25rem;
 }
 
-.toggle-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.toggle-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-}
-
-.toggle-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.toggle-title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.toggle-desc {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.toggle-switch {
-  width: 44px;
-  height: 24px;
-  background: var(--border-strong);
-  border-radius: 999px;
-  padding: 2px;
-  transition: background 0.2s ease;
-  cursor: pointer;
-}
-
-.toggle-switch.on {
-  background: linear-gradient(135deg, var(--primary), var(--primary-soft));
-}
-
-.toggle-knob {
-  width: 20px;
-  height: 20px;
-  background: white;
-  border-radius: 999px;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.2s ease;
-}
-
-.toggle-switch.on .toggle-knob {
-  transform: translateX(20px);
-}
-
-.save-bar {
+.form-actions {
   margin-top: 1rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
 @media (max-width: 768px) {
@@ -583,14 +426,11 @@ const saveSettings = () => {
 
   .view-content {
     padding: 1rem 1.25rem 1.5rem;
+    max-width: 100%;
   }
 
   .form-row {
     grid-template-columns: 1fr;
-  }
-
-  .theme-options {
-    flex-direction: column;
   }
 }
 </style>

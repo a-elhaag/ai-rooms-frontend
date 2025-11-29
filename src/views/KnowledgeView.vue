@@ -463,40 +463,146 @@ const formatDate = (dateString) => {
 
 @media (max-width: 768px) {
   .view-header {
-    padding: 1rem 1.25rem;
+    padding: 1rem;
+    padding-top: calc(3rem + env(safe-area-inset-top, 0)); /* Space for mobile menu */
   }
 
   .header-content {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .view-title {
+    font-size: 1.4rem;
+  }
+
+  .view-subtitle {
+    font-size: 0.8rem;
   }
 
   .filter-bar {
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem 1rem;
     flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
   }
 
   .search-box {
     max-width: none;
   }
 
+  .search-input {
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+
   .type-filters {
     overflow-x: auto;
     padding-bottom: 0.25rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    gap: 0.4rem;
+  }
+
+  .type-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-btn {
+    flex-shrink: 0;
+    padding: 0.5rem 0.85rem;
+    min-height: 40px;
   }
 
   .view-content {
-    padding: 1rem 1.25rem 1.5rem;
+    padding: 1rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
   }
 
   .knowledge-grid {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .knowledge-card {
+    padding: 1rem;
+  }
+
+  .card-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  .card-title {
+    font-size: 0.95rem;
+  }
+
+  .card-meta {
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .card-actions {
     opacity: 1;
+    flex-direction: row;
+  }
+
+  .empty-illustration {
+    width: 100px;
+    height: 100px;
+  }
+
+  .empty-icon-wrap {
+    width: 44px;
+    height: 44px;
+  }
+
+  .empty-state h3 {
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .view-header {
+    padding: 0.75rem;
+    padding-top: calc(2.75rem + env(safe-area-inset-top, 0));
+  }
+
+  .view-title {
+    font-size: 1.25rem;
+  }
+
+  .filter-bar {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .filter-btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .view-content {
+    padding: 0.75rem;
+  }
+
+  .knowledge-card {
+    padding: 0.85rem;
+    gap: 0.75rem;
+  }
+
+  .card-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .card-tags {
+    gap: 0.3rem;
+  }
+
+  .tag {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.65rem;
   }
 }
 </style>
