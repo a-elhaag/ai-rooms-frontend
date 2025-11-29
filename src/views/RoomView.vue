@@ -1684,7 +1684,11 @@ watch(filteredCommands, () => {
       </div>
 
       <!-- Side Panel -->
-      <div class="side-panel" :class="{ 'mobile-hidden': !showMobilePanel }">
+      <div
+        class="side-panel"
+        :class="{ 'mobile-hidden': !showMobilePanel }"
+        style="display: flex; flex-direction: column"
+      >
         <div class="panel-tabs desktop-tabs">
           <button
             class="panel-tab"
@@ -1731,7 +1735,7 @@ watch(filteredCommands, () => {
           </div>
         </div>
 
-        <div class="panel-content">
+        <div class="panel-content" style="flex: 1; overflow-y: auto; min-height: 0">
           <!-- Tasks Panel -->
           <div v-if="activePanel === 'tasks'" class="tasks-panel">
             <div class="panel-header">
@@ -1786,7 +1790,6 @@ watch(filteredCommands, () => {
                           Edit
                         </button>
                         <button class="chip-btn" @click="resolveTask(task)">Resolve</button>
-                        <button class="chip-btn danger" @click="deleteTask(task)">Delete</button>
                         <button class="chip-btn danger" @click="deleteTask(task)">Delete</button>
                       </div>
                     </div>
@@ -2780,6 +2783,7 @@ watch(filteredCommands, () => {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  overflow: hidden;
   animation: slideInRight 0.3s ease;
 }
 
