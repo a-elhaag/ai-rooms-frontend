@@ -99,8 +99,8 @@ const isTyping = ref(false)
 const messages = ref([
   {
     id: 1,
-    sender: 'AI Assistant',
-    text: "Hello! Welcome to the AI Room. I'm here to help you with your tasks and answer any questions you might have.",
+    sender: 'Veya',
+    text: "Hey! 👋 Welcome to AI Rooms. I'm Veya, your AI teammate. I can help with tasks, answer questions, and keep things organized. What are you working on?",
     time: '10:30 AM',
     isAi: true,
   },
@@ -113,8 +113,8 @@ const messages = ref([
   },
   {
     id: 3,
-    sender: 'AI Assistant',
-    text: "Of course! Here's how our collaboration works:\n\n• **Tasks**: Create and assign tasks to team members or AI agents\n• **Knowledge Base**: Share documents and references that AI can learn from\n• **Real-time Chat**: Communicate with your team and AI in real-time\n• **AI Analysis**: Get intelligent insights and suggestions",
+    sender: 'Veya',
+    text: "Of course! Here's the gist:\n\n• **Tasks**: Create and assign tasks - I'll help track them!\n• **Knowledge Base**: Share docs and I'll learn from them\n• **Real-time Chat**: Talk with your team and me anytime\n• **Proactive Help**: I'll create tasks, react to messages, and jump in when I can help 🚀",
     time: '10:32 AM',
     isAi: true,
   },
@@ -127,19 +127,19 @@ const messages = ref([
   },
   {
     id: 5,
-    sender: 'AI Assistant',
-    text: "Absolutely! Just upload your files using the paperclip button below, and I'll analyze them for you. I can provide:\n\n• Code reviews and suggestions\n• Documentation summaries\n• Task extraction and prioritization\n• Quality improvement recommendations",
+    sender: 'Veya',
+    text: "Absolutely! Just drop your files using the paperclip button 📎 and I'll dive in. I can do:\n\n• Code reviews and suggestions\n• Doc summaries\n• Extract tasks automatically\n• Quality recommendations\n\nLet's do this! 💪",
     time: '10:34 AM',
     isAi: true,
   },
 ])
 
 const aiResponses = [
-  "That's a great question! Let me think about it...\n\nBased on my analysis, I would recommend breaking this down into smaller, manageable tasks. Would you like me to help create a task list?",
-  "I've analyzed your request and here are my thoughts:\n\n• First, we should review the current status\n• Then, identify any blockers\n• Finally, create an action plan\n\nWould you like to proceed with this approach?",
-  "Interesting point! Here's what I found:\n\n**Key Insights:**\n- The data suggests a positive trend\n- There are a few areas for improvement\n- I recommend focusing on the core objectives first",
-  "I'm on it! Give me a moment to process this...\n\nDone! I've analyzed the information and created a summary for you. The main takeaways are:\n1. Strong foundation in place\n2. Room for optimization\n3. Clear path forward",
-  "Great idea! Let me help you implement that.\n\n**Next Steps:**\n• Define clear objectives\n• Set up the workflow\n• Monitor progress\n\nI'll be here to assist throughout the process!",
+  "That's a great question! 🤔 Let me think...\n\nI'd suggest breaking this into smaller tasks. Want me to create a task list for you?",
+  "On it! Here's my take:\n\n• First, let's check the current status\n• Then, spot any blockers\n• Finally, make an action plan\n\nSound good? 👍",
+  "Interesting! Here's what I found:\n\n**Key Insights:**\n- Looking positive overall 📈\n- A few spots to improve\n- Core objectives are clear\n\nLet me know if you want me to dig deeper!",
+  'Give me a sec to process this...\n\n✅ Done! Main takeaways:\n1. Strong foundation\n2. Room to optimize\n3. Clear path forward\n\nI added a task to track this!',
+  "Love it! Let's make it happen 🚀\n\n**Next Steps:**\n• Define objectives\n• Set up workflow\n• Monitor progress\n\nI'm here to help!",
 ]
 
 function formatMessage(text) {
@@ -173,7 +173,7 @@ async function sendMessage() {
 
   const aiMessage = {
     id: Date.now() + 1,
-    sender: 'AI Assistant',
+    sender: 'Veya',
     text: aiResponses[Math.floor(Math.random() * aiResponses.length)],
     time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     isAi: true,

@@ -106,7 +106,7 @@ const completedTasks = computed(() => tasks.value.filter((t) => t.status === 'do
 
 // All assignable members including AI
 const assignableMembers = computed(() => {
-  const list = [{ id: 'ai', username: 'AI Assistant', isAI: true }]
+  const list = [{ id: 'ai', username: 'Veya', isAI: true }]
   members.value.forEach((m) => {
     list.push({ id: m.user_id, username: m.username, isAI: false })
   })
@@ -165,10 +165,10 @@ const slashCommands = [
   },
   {
     id: 'ask-ai',
-    label: 'Ask AI',
-    description: 'Mention the AI directly',
+    label: 'Ask Veya',
+    description: 'Mention Veya directly',
     action: 'insert',
-    text: '@AI Assistant ',
+    text: '@Veya ',
   },
 ]
 
@@ -740,10 +740,10 @@ const renderMessage = (text) => {
   const commands = []
   let processed = text
 
-  // Extract @mentions (match @word including multi-word like "AI Assistant")
-  processed = processed.replace(/@([\w\s]+?)(?=\s|$|[.,!?])/g, (match, name) => {
+  // Extract @mentions - match @username (word characters only)
+  processed = processed.replace(/@(\w+)/g, (match, name) => {
     const idx = mentions.length
-    mentions.push(name.trim())
+    mentions.push(name)
     return `__MENTION_${idx}__`
   })
 
@@ -775,14 +775,14 @@ const renderMessage = (text) => {
   )
   safe = safe.replace(/\n/g, '<br/>')
 
-  // Restore mentions with styling
+  // Restore mentions with styling (blue highlight visible in message bubble)
   mentions.forEach((name, idx) => {
-    safe = safe.replace(`__MENTION_${idx}__`, `<span class="token-blue">@${name}</span>`)
+    safe = safe.replace(`__MENTION_${idx}__`, `<span class="mention-highlight">@${name}</span>`)
   })
 
-  // Restore commands with styling
+  // Restore commands with styling (blue highlight visible in message bubble)
   commands.forEach((cmd, idx) => {
-    safe = safe.replace(`__COMMAND_${idx}__`, `<span class="token-blue">${cmd}</span>`)
+    safe = safe.replace(`__COMMAND_${idx}__`, `<span class="command-highlight">${cmd}</span>`)
   })
 
   return safe
@@ -965,12 +965,27 @@ const handleKeyDown = (e) => {
       })
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      selectCommand(filteredCommands.value[commandActiveIndex.value])
+      // When Enter is pressed in command menu, insert the command text instead of executing
+      const cmd = filteredCommands.value[commandActiveIndex.value]
+      if (cmd) {
+        insertCommandText(cmd.text || `/${cmd.id}`)
+      }
     } else if (e.key === 'Escape') {
       showCommandMenu.value = false
       commandSearch.value = ''
     }
   }
+}
+
+// Handle Enter keydown - send message only if no menus are open
+const handleEnterKeydown = (e) => {
+  // If mention or command menu is open, let handleKeyDown handle it
+  if (showMentionMenu.value || showCommandMenu.value) {
+    return
+  }
+  // Otherwise, send the message
+  e.preventDefault()
+  sendMessage()
 }
 
 // AI Actions
@@ -1014,7 +1029,7 @@ const addTasksSnapshotToChat = () => {
   messages.value.push({
     id: `ai-task-${Date.now()}`,
     sender_type: 'ai',
-    sender_name: 'AI Assistant',
+    sender_name: 'Veya',
     content,
     created_at: new Date().toISOString(),
   })
@@ -1026,7 +1041,7 @@ const addKnowledgeSnapshotToChat = () => {
     messages.value.push({
       id: `ai-kb-${Date.now()}`,
       sender_type: 'ai',
-      sender_name: 'AI Assistant',
+      sender_name: 'Veya',
       content: 'No knowledge base is available yet.',
       created_at: new Date().toISOString(),
     })
@@ -1043,7 +1058,7 @@ const addKnowledgeSnapshotToChat = () => {
   messages.value.push({
     id: `ai-kb-${Date.now()}`,
     sender_type: 'ai',
-    sender_name: 'AI Assistant',
+    sender_name: 'Veya',
     content,
     created_at: new Date().toISOString(),
   })
@@ -1052,7 +1067,7 @@ const addKnowledgeSnapshotToChat = () => {
 
 const messageHasAIMention = (text) => {
   if (!text) return false
-  return /@ai(\b|_)/i.test(text) || /@ai assistant/i.test(text)
+  return /@ai(\b|_)/i.test(text) || /@veya/i.test(text)
 }
 
 const buildAIContext = (content, replyMessage = null) => {
@@ -1561,9 +1576,7 @@ watch(filteredCommands, () => {
             <div class="message-content">
               <div class="message-header">
                 <span class="message-sender">
-                  {{
-                    message.sender_name || (message.sender_type === 'ai' ? 'AI Assistant' : 'User')
-                  }}
+                  {{ message.sender_name || (message.sender_type === 'ai' ? 'Veya' : 'User') }}
                 </span>
                 <span class="message-time">{{ formatTime(message.created_at) }}</span>
               </div>
@@ -1660,7 +1673,7 @@ watch(filteredCommands, () => {
               type="text"
               class="message-input"
               placeholder="Type @ to mention, / for commands..."
-              @keyup.enter="showMentionMenu || showCommandMenu ? null : sendMessage()"
+              @keydown.enter="handleEnterKeydown"
               @input="handleMessageInput"
               @keydown="handleKeyDown"
               ref="messageInputField"
@@ -1797,7 +1810,7 @@ watch(filteredCommands, () => {
                       <div class="task-assignee">
                         <span class="assignee-avatar">
                           {{
-                            task.assignee_name === 'AI'
+                            ['AI', 'Veya'].includes(task.assignee_name)
                               ? '🤖'
                               : task.assignee_name
                                 ? getSenderInitials(task.assignee_name)
@@ -1809,7 +1822,9 @@ watch(filteredCommands, () => {
                           <select
                             class="task-status-select assignee-select"
                             :value="
-                              task.assignee_id || (task.assignee_name === 'AI' ? 'ai' : '') || ''
+                              task.assignee_id ||
+                              (['AI', 'Veya'].includes(task.assignee_name) ? 'ai' : '') ||
+                              ''
                             "
                             @change="updateTaskAssignee(task, $event.target.value || null)"
                           >
@@ -1892,7 +1907,7 @@ watch(filteredCommands, () => {
                       <div class="task-assignee">
                         <span class="assignee-avatar">
                           {{
-                            task.assignee_name === 'AI'
+                            ['AI', 'Veya'].includes(task.assignee_name)
                               ? '🤖'
                               : task.assignee_name
                                 ? getSenderInitials(task.assignee_name)
@@ -1904,7 +1919,9 @@ watch(filteredCommands, () => {
                           <select
                             class="task-status-select assignee-select"
                             :value="
-                              task.assignee_id || (task.assignee_name === 'AI' ? 'ai' : '') || ''
+                              task.assignee_id ||
+                              (['AI', 'Veya'].includes(task.assignee_name) ? 'ai' : '') ||
+                              ''
                             "
                             @change="updateTaskAssignee(task, $event.target.value || null)"
                           >
@@ -1986,7 +2003,7 @@ watch(filteredCommands, () => {
                       <div class="task-assignee">
                         <span class="assignee-avatar">
                           {{
-                            task.assignee_name === 'AI'
+                            ['AI', 'Veya'].includes(task.assignee_name)
                               ? '🤖'
                               : task.assignee_name
                                 ? getSenderInitials(task.assignee_name)
@@ -1998,7 +2015,9 @@ watch(filteredCommands, () => {
                           <select
                             class="task-status-select assignee-select"
                             :value="
-                              task.assignee_id || (task.assignee_name === 'AI' ? 'ai' : '') || ''
+                              task.assignee_id ||
+                              (['AI', 'Veya'].includes(task.assignee_name) ? 'ai' : '') ||
+                              ''
                             "
                             @change="updateTaskAssignee(task, $event.target.value || null)"
                           >
@@ -2588,8 +2607,21 @@ watch(filteredCommands, () => {
   text-decoration: underline;
 }
 
-.token-blue {
-  color: var(--primary);
+/* Highlight for @mentions in message bubbles */
+.mention-highlight {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Highlight for /commands in message bubbles */
+.command-highlight {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 1px 4px;
+  border-radius: 4px;
   font-weight: 600;
 }
 
