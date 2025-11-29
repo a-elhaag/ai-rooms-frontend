@@ -2443,58 +2443,6 @@ watch(filteredCommands, () => {
 
 /* Message Input - using the enhanced version at the bottom */
 
-/* Smart Suggestions */
-.smart-suggestions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-2);
-  animation: slideUp 0.2s ease;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.suggestions-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.suggestions-list {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.suggestion-chip {
-  padding: var(--space-1) var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.suggestion-chip:hover {
-  background: var(--primary-soft);
-  border-color: var(--primary);
-  color: var(--primary);
-  transform: translateY(-1px);
-}
-
 .message-input-wrapper {
   display: flex;
   gap: var(--space-3);
