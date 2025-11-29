@@ -1729,7 +1729,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'tasks' }"
               @click="
-                activePanel = 'tasks'
+                activePanel = 'tasks';
                 showMobilePanelMenu = false
               "
             >
@@ -1739,7 +1739,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'knowledge' }"
               @click="
-                activePanel = 'knowledge'
+                activePanel = 'knowledge';
                 showMobilePanelMenu = false
               "
             >
