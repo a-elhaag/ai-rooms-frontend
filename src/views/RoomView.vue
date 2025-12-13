@@ -621,8 +621,9 @@ const createTask = async () => {
     if (detectedAssignee) {
       taskData.assignee_id = detectedAssignee
     }
-    const task = await taskService.createTask(roomId.value, taskData)
-    tasks.value.unshift(task)
+    // Task will be added via WebSocket broadcast (task_created event)
+    // Don't add here to avoid duplicates
+    await taskService.createTask(roomId.value, taskData)
     newTaskTitle.value = ''
     newTaskAssignee.value = ''
     showTaskDialog.value = false
@@ -634,11 +635,8 @@ const createTask = async () => {
 // Update task status
 const updateTaskStatus = async (task, newStatus) => {
   try {
-    const updated = await taskService.updateTask(task.id, { status: newStatus })
-    const index = tasks.value.findIndex((t) => t.id === task.id)
-    if (index !== -1) {
-      tasks.value[index] = updated
-    }
+    // Task will be updated via WebSocket broadcast (task_updated event)
+    await taskService.updateTask(task.id, { status: newStatus })
   } catch (err) {
     console.error('Failed to update task:', err)
   }
@@ -647,11 +645,8 @@ const updateTaskStatus = async (task, newStatus) => {
 // Update task assignee
 const updateTaskAssignee = async (task, newAssigneeId) => {
   try {
-    const updated = await taskService.updateTask(task.id, { assignee_id: newAssigneeId })
-    const index = tasks.value.findIndex((t) => t.id === task.id)
-    if (index !== -1) {
-      tasks.value[index] = updated
-    }
+    // Task will be updated via WebSocket broadcast (task_updated event)
+    await taskService.updateTask(task.id, { assignee_id: newAssigneeId })
   } catch (err) {
     console.error('Failed to update task assignee:', err)
   }
@@ -665,11 +660,8 @@ const startEditingTask = (task) => {
 const saveTaskEdit = async (task) => {
   if (!editingTaskTitle.value.trim()) return
   try {
-    const updated = await taskService.updateTask(task.id, { title: editingTaskTitle.value.trim() })
-    const index = tasks.value.findIndex((t) => t.id === task.id)
-    if (index !== -1) {
-      tasks.value[index] = updated
-    }
+    // Task will be updated via WebSocket broadcast (task_updated event)
+    await taskService.updateTask(task.id, { title: editingTaskTitle.value.trim() })
   } catch (err) {
     console.error('Failed to update task title:', err)
   } finally {
@@ -689,8 +681,8 @@ const resolveTask = (task) => {
 
 const deleteTask = async (task) => {
   try {
+    // Task will be removed via WebSocket broadcast (task_deleted event)
     await taskService.deleteTask(task.id)
-    tasks.value = tasks.value.filter((t) => t.id !== task.id)
   } catch (err) {
     console.error('Failed to delete task:', err)
   }
@@ -1068,13 +1060,7 @@ const addKnowledgeSnapshotToChat = () => {
 
 const messageHasAIMention = (text) => {
   if (!text) return false
-  const patterns = [
-    /@ai(\b|_)/i,
-    /@assistant/i,
-    /@bot/i,
-    /@veya/i,
-    /\bveya\b/i,
-  ]
+  const patterns = [/@ai(\b|_)/i, /@assistant/i, /@bot/i, /@veya/i, /\bveya\b/i]
   return patterns.some((regex) => regex.test(text))
 }
 
@@ -1749,7 +1735,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'tasks' }"
               @click="
-                activePanel = 'tasks';
+                activePanel = 'tasks'
                 showMobilePanelMenu = false
               "
             >
@@ -1759,7 +1745,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'knowledge' }"
               @click="
-                activePanel = 'knowledge';
+                activePanel = 'knowledge'
                 showMobilePanelMenu = false
               "
             >
