@@ -1745,7 +1745,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'knowledge' }"
               @click="
-                activePanel = 'knowledge'
+                activePanel = 'knowledge';
                 showMobilePanelMenu = false
               "
             >
