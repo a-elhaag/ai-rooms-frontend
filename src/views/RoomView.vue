@@ -328,7 +328,8 @@ const uploadDocumentWithProgress = async (file) => {
       docUploadProgress.value = progress
     })
 
-    documents.value.unshift(doc)
+    // Reload documents from backend to avoid duplicates caused by WebSocket broadcasts
+    await fetchDocuments()
     try {
       await knowledgeService.addResource(roomId.value, {
         title: doc.filename || 'Uploaded document',
@@ -1478,7 +1479,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'tasks' }"
               @click="
-                activePanel = 'tasks';
+                activePanel = 'tasks'
                 showMobilePanelMenu = false
               "
             >
@@ -1488,7 +1489,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'knowledge' }"
               @click="
-                activePanel = 'knowledge';
+                activePanel = 'knowledge'
                 showMobilePanelMenu = false
               "
             >

@@ -213,7 +213,8 @@ const uploadDocument = async (file) => {
       uploadProgress.value = progress
     })
 
-    documents.value.unshift(doc)
+    // After upload, reload the document list from backend to avoid duplicates
+    await fetchDocuments()
     // Link the upload into KB as a resource
     try {
       const kb = await knowledgeService.addResource(selectedRoomId.value, {
@@ -335,7 +336,9 @@ const formatFileSize = (bytes) => {
           />
         </div>
         <div class="meta">
-          <span v-if="normalizedKB.last_updated">Updated {{ formatDate(normalizedKB.last_updated) }}</span>
+          <span v-if="normalizedKB.last_updated"
+            >Updated {{ formatDate(normalizedKB.last_updated) }}</span
+          >
           <span v-else>Fresh workspace</span>
         </div>
       </div>
@@ -476,7 +479,13 @@ const formatFileSize = (bytes) => {
                 <h3>Upload & manage</h3>
               </div>
               <div class="upload-actions">
-                <input ref="fileInput" type="file" accept=".pdf,.ppt,.pptx" hidden @change="onFileChange" />
+                <input
+                  ref="fileInput"
+                  type="file"
+                  accept=".pdf,.ppt,.pptx"
+                  hidden
+                  @change="onFileChange"
+                />
                 <AppButton size="sm" variant="ghost" @click="handleFilePick">
                   <AppIcon name="upload" size="sm" />
                   Upload
@@ -496,7 +505,10 @@ const formatFileSize = (bytes) => {
                 <article v-for="doc in filteredDocs" :key="doc.id" class="doc-card">
                   <div class="doc-top">
                     <div class="doc-icon">
-                      <AppIcon :name="doc.file_type === 'pdf' ? 'file-text' : 'presentation'" size="sm" />
+                      <AppIcon
+                        :name="doc.file_type === 'pdf' ? 'file-text' : 'presentation'"
+                        size="sm"
+                      />
                     </div>
                     <div class="doc-meta">
                       <div class="strong">{{ doc.filename }}</div>
