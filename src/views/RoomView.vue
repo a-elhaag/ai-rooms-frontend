@@ -2955,10 +2955,6 @@ watch(filteredCommands, () => {
   .kb-section {
     padding: var(--space-3);
   }
-
-  .kb-summary-text {
-    font-size: 0.85rem;
-  }
 }
 
 /* Task list */
@@ -3041,13 +3037,6 @@ watch(filteredCommands, () => {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0;
-}
-
-.kb-summary-text {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
   margin: 0;
 }
 
