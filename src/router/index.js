@@ -29,19 +29,9 @@ const router = createRouter({
       component: () => import('../views/TasksView.vue'),
     },
     {
-      path: '/knowledge',
-      name: 'knowledge',
-      component: () => import('../views/KnowledgeView.vue'),
-    },
-    {
       path: '/settings',
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),
-    },
-    {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue'),
     },
   ],
 })
