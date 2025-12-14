@@ -48,7 +48,7 @@ const saveProfile = async () => {
 
   saving.value = true
   try {
-    const response = await api.patch('/auth/profile', {
+    await api.patch('/auth/profile', {
       username: newUsername.value.trim(),
     })
 

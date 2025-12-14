@@ -34,7 +34,9 @@ export default {
     const response = await apiClient.post(`/rooms/${roomId}/documents/search`, null, {
       params: { query, limit },
     })
-    return response.data
+    const data = response.data
+    if (Array.isArray(data)) return data
+    return data?.results ?? data ?? []
   },
 
   // Ask a question about documents (RAG)

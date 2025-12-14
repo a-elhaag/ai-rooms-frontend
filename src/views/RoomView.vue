@@ -39,7 +39,6 @@ const roomName = ref('')
 const aiThinking = ref(false)
 
 // AI Features
-const showAIMenu = ref(false)
 const aiLoading = ref(false)
 const showTaskDialog = ref(false)
 const newTaskTitle = ref('')
@@ -47,31 +46,13 @@ const newTaskAssignee = ref('')
 const editingTaskId = ref(null)
 const editingTaskTitle = ref('')
 
-// KB Editing
-const editingKBSummary = ref(false)
-const kbSummaryInput = ref('')
-const newDecision = ref('')
-const newLink = ref({ title: '', url: '' })
-const newResource = ref({ title: '', url: '', description: '' })
-const showAddDecision = ref(false)
-const showAddLink = ref(false)
-const showAddResource = ref(false)
-
 // Document Upload
-const isDraggingFile = ref(false)
-const uploadingFile = ref(false)
-const uploadProgress = ref(0)
-const documentQuestion = ref('')
-const askingDocument = ref(false)
 const showDocUpload = ref(false)
 const uploadingDoc = ref(false)
 const docUploadProgress = ref(0)
-const docSearchQuery = ref('')
-const docSearchResults = ref([])
 
 // Typing Indicators
 const typingUsers = ref({})
-const typingTimeout = ref(null)
 
 // Online Presence
 const onlineUserIds = ref([])
@@ -291,82 +272,6 @@ const fetchDocuments = async () => {
   }
 }
 
-// Document Upload Methods
-const handleFileDragOver = (e) => {
-  e.preventDefault()
-  isDraggingFile.value = true
-}
-
-const handleFileDragLeave = () => {
-  isDraggingFile.value = false
-}
-
-const handleFileDrop = async (e) => {
-  e.preventDefault()
-  isDraggingFile.value = false
-
-  const files = e.dataTransfer?.files
-  if (files && files.length > 0) {
-    await uploadDocument(files[0])
-  }
-}
-
-const handleFileSelect = async (e) => {
-  const files = e.target?.files
-  if (files && files.length > 0) {
-    await uploadDocument(files[0])
-  }
-}
-
-const uploadDocument = async (file) => {
-  // Validate file type
-  const allowedTypes = [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/vnd.ms-powerpoint',
-  ]
-
-  if (!allowedTypes.includes(file.type)) {
-    alert('Please upload a PDF or PowerPoint file.')
-    return
-  }
-
-  // Check file size (20MB max)
-  if (file.size > 20 * 1024 * 1024) {
-    alert('File too large. Maximum size is 20MB.')
-    return
-  }
-
-  try {
-    uploadingFile.value = true
-    uploadProgress.value = 0
-
-    const doc = await documentService.uploadDocument(roomId.value, file, (progress) => {
-      uploadProgress.value = progress
-    })
-
-    documents.value.unshift(doc)
-    try {
-      await knowledgeService.addResource(roomId.value, {
-        title: doc.filename || 'Uploaded document',
-        url: doc.id,
-        description: doc.summary || 'Document uploaded to room',
-      })
-      await fetchKnowledgeBase()
-      await fetchGoals()
-    } catch (err) {
-      console.error('Failed to append upload to KB:', err)
-    }
-    uploadProgress.value = 100
-  } catch (err) {
-    console.error('Failed to upload document:', err)
-    alert('Failed to upload document. Please try again.')
-  } finally {
-    uploadingFile.value = false
-    uploadProgress.value = 0
-  }
-}
-
 const deleteDocument = async (docId) => {
   if (!confirm('Are you sure you want to delete this document?')) return
 
@@ -382,32 +287,6 @@ const deleteDocument = async (docId) => {
     }
   } catch (err) {
     console.error('Failed to delete document:', err)
-  }
-}
-
-const askAboutDocuments = async () => {
-  if (!documentQuestion.value.trim()) return
-
-  try {
-    askingDocument.value = true
-    const result = await documentService.askDocument(roomId.value, documentQuestion.value.trim())
-
-    // Add AI response to chat
-    messages.value.push({
-      id: `doc-qa-${Date.now()}`,
-      sender_type: 'ai',
-      sender_name: 'Veya',
-      content: `📚 **Document Q&A:**\n\n**Q:** ${result.question}\n\n**A:** ${result.answer}`,
-      created_at: new Date().toISOString(),
-    })
-
-    documentQuestion.value = ''
-    nextTick(() => scrollToBottom())
-  } catch (err) {
-    console.error('Failed to ask about documents:', err)
-    alert('Failed to process your question.')
-  } finally {
-    askingDocument.value = false
   }
 }
 
@@ -468,140 +347,6 @@ const uploadDocumentWithProgress = async (file) => {
   } finally {
     uploadingDoc.value = false
     docUploadProgress.value = 0
-  }
-}
-
-const mentionDocument = (doc) => {
-  const ref = `@doc:${doc.filename || doc.id}`
-  messageInput.value = messageInput.value ? `${messageInput.value} ${ref}` : ref
-  nextTick(() => {
-    if (messageInputField.value) {
-      messageInputField.value.focus()
-    }
-  })
-}
-
-const searchDocuments = async () => {
-  if (!docSearchQuery.value.trim()) {
-    docSearchResults.value = []
-    return
-  }
-
-  try {
-    const results = await documentService.searchDocuments(roomId.value, docSearchQuery.value.trim())
-    docSearchResults.value = results || []
-  } catch (err) {
-    console.error('Failed to search documents:', err)
-  }
-}
-
-const formatFileSize = (bytes) => {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let i = 0
-  while (bytes >= 1024 && i < units.length - 1) {
-    bytes /= 1024
-    i++
-  }
-  return `${bytes.toFixed(1)} ${units[i]}`
-}
-
-// Typing indicator methods
-const sendTypingIndicator = () => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(
-      JSON.stringify({
-        type: 'typing',
-        is_typing: true,
-      }),
-    )
-
-    // Clear any existing timeout
-    if (typingTimeout.value) {
-      clearTimeout(typingTimeout.value)
-    }
-
-    // Set timeout to stop typing indicator
-    typingTimeout.value = setTimeout(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'typing',
-            is_typing: false,
-          }),
-        )
-      }
-    }, 3000)
-  }
-}
-
-const typingUsersDisplay = computed(() => {
-  const users = Object.values(typingUsers.value)
-  if (users.length === 0) return ''
-  if (users.length === 1) return `${users[0]} is typing...`
-  if (users.length === 2) return `${users[0]} and ${users[1]} are typing...`
-  return `${users.length} people are typing...`
-})
-
-// KB Editing Methods
-const startEditKBSummary = () => {
-  kbSummaryInput.value = knowledgeBase.value?.summary || ''
-  editingKBSummary.value = true
-}
-
-const saveKBSummary = async () => {
-  try {
-    await knowledgeService.updateRoomKB(roomId.value, { summary: kbSummaryInput.value })
-    if (knowledgeBase.value) {
-      knowledgeBase.value.summary = kbSummaryInput.value
-    } else {
-      knowledgeBase.value = { summary: kbSummaryInput.value }
-    }
-    editingKBSummary.value = false
-  } catch (err) {
-    console.error('Failed to update KB summary:', err)
-  }
-}
-
-const addKBDecision = async () => {
-  if (!newDecision.value.trim()) return
-  try {
-    await knowledgeService.addDecision(roomId.value, newDecision.value.trim())
-    if (!knowledgeBase.value) knowledgeBase.value = {}
-    if (!knowledgeBase.value.key_decisions) knowledgeBase.value.key_decisions = []
-    knowledgeBase.value.key_decisions.push(newDecision.value.trim())
-    newDecision.value = ''
-    showAddDecision.value = false
-  } catch (err) {
-    console.error('Failed to add decision:', err)
-  }
-}
-
-const addKBLink = async () => {
-  if (!newLink.value.title.trim() || !newLink.value.url.trim()) return
-  try {
-    await knowledgeService.addLink(roomId.value, { ...newLink.value })
-    if (!knowledgeBase.value) knowledgeBase.value = {}
-    if (!knowledgeBase.value.important_links) knowledgeBase.value.important_links = []
-    knowledgeBase.value.important_links.push({ ...newLink.value })
-    newLink.value = { title: '', url: '' }
-    showAddLink.value = false
-  } catch (err) {
-    console.error('Failed to add link:', err)
-  }
-}
-
-const addKBResource = async () => {
-  if (!newResource.value.title.trim() || !newResource.value.url.trim()) return
-  try {
-    await knowledgeService.addResource(roomId.value, { ...newResource.value })
-    if (!knowledgeBase.value) knowledgeBase.value = {}
-    if (!knowledgeBase.value.resources) knowledgeBase.value.resources = []
-    knowledgeBase.value.resources.push({ ...newResource.value })
-    newResource.value = { title: '', url: '', description: '' }
-    showAddResource.value = false
-  } catch (err) {
-    console.error('Failed to add resource:', err)
   }
 }
 
@@ -1221,8 +966,6 @@ const sendMessage = async () => {
     messageInput.value = content // Restore message
   } finally {
     sending.value = false
-    showSmartSuggestions.value = false
-    smartSuggestions.value = []
   }
 }
 
