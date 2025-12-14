@@ -1479,7 +1479,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'tasks' }"
               @click="
-                activePanel = 'tasks'
+                activePanel = 'tasks';
                 showMobilePanelMenu = false
               "
             >
@@ -1489,7 +1489,7 @@ watch(filteredCommands, () => {
               class="panel-tab"
               :class="{ active: activePanel === 'knowledge' }"
               @click="
-                activePanel = 'knowledge'
+                activePanel = 'knowledge';
                 showMobilePanelMenu = false
               "
             >
@@ -1807,15 +1807,7 @@ watch(filteredCommands, () => {
           <!-- Knowledge Panel (includes Documents) -->
           <div v-if="activePanel === 'knowledge'" class="knowledge-panel">
             <div class="panel-body kb-panel-body">
-              <!-- Summary Section -->
-              <div class="kb-section">
-                <div class="kb-section-header">
-                  <h4>Summary</h4>
-                </div>
-                <p class="kb-summary-text">
-                  {{ knowledgeBase?.summary || knowledgeBase?.content || 'No summary available.' }}
-                </p>
-              </div>
+              <!-- Summary section removed -->
 
               <!-- Key Decisions -->
               <div class="kb-section" v-if="knowledgeBase?.key_decisions?.length">

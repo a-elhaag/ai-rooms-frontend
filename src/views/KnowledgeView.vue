@@ -14,8 +14,7 @@ const loadingKB = ref(false)
 const loadingDocs = ref(false)
 const refreshing = ref(false)
 const searchQuery = ref('')
-const summaryInput = ref('')
-const updatingSummary = ref(false)
+/* Summary removed from top of KB (managed elsewhere) */
 const newDecision = ref('')
 const newLink = ref({ title: '', url: '' })
 const newResource = ref({ title: '', url: '', description: '' })
@@ -106,7 +105,6 @@ const fetchKB = async () => {
     loadingKB.value = true
     const kb = await knowledgeService.getRoomKB(selectedRoomId.value)
     knowledgeBase.value = normalizeKB(kb || {})
-    summaryInput.value = knowledgeBase.value.summary
   } catch (err) {
     error.value = err.response?.data?.detail || 'Failed to load knowledge base'
   } finally {
@@ -127,20 +125,7 @@ const fetchDocuments = async () => {
   }
 }
 
-const saveSummary = async () => {
-  if (!selectedRoomId.value) return
-  try {
-    updatingSummary.value = true
-    const updated = await knowledgeService.updateRoomKB(selectedRoomId.value, {
-      summary: summaryInput.value,
-    })
-    knowledgeBase.value = normalizeKB(updated || { summary: summaryInput.value })
-  } catch (err) {
-    error.value = err.response?.data?.detail || 'Failed to update summary'
-  } finally {
-    updatingSummary.value = false
-  }
-}
+/* Summary save/generate removed from UI */
 
 const addDecision = async () => {
   if (!newDecision.value.trim() || !selectedRoomId.value) return
@@ -358,25 +343,7 @@ const formatFileSize = (bytes) => {
 
       <template v-else>
         <div class="grid">
-          <section class="card summary-card">
-            <header>
-              <div>
-                <p class="eyebrow">Summary</p>
-                <h3>Room at a glance</h3>
-              </div>
-              <AppButton size="sm" :disabled="updatingSummary" @click="saveSummary">
-                <AppIcon name="save" size="sm" />
-                Save
-              </AppButton>
-            </header>
-            <textarea
-              v-model="summaryInput"
-              class="textarea"
-              rows="4"
-              placeholder="Summarize goals, state, and what changed recently..."
-              :disabled="loadingKB"
-            ></textarea>
-          </section>
+          <!-- Summary removed from KB view -->
 
           <section class="card list-card">
             <header>
@@ -563,7 +530,7 @@ const formatFileSize = (bytes) => {
                 @keyup.enter="askDocuments"
               />
               <AppButton size="sm" :disabled="askingDoc" @click="askDocuments">
-                <AppIcon name="sparkles" size="sm" />
+                <AppIcon name="sparkle" size="sm" />
                 Ask
               </AppButton>
             </div>

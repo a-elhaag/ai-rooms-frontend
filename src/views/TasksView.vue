@@ -23,7 +23,7 @@ const fetchTasks = async () => {
       room: t.room_name || 'Unknown Room',
       room_id: t.room_id,
       status: t.status || 'pending',
-      priority: t.priority || 'medium',
+      // priority removed
       due: t.due_date,
       assignee_id: t.assignee_id,
     }))
@@ -51,7 +51,6 @@ const taskCounts = computed(() => ({
   completed: tasks.value.filter((t) => t.status === 'completed').length,
 }))
 
-const getPriorityClass = (priority) => `priority-${priority}`
 const getStatusClass = (status) => `status-${status}`
 
 const formatDate = (dateString) => {
@@ -158,9 +157,6 @@ const toggleTaskComplete = async (task) => {
           <div class="task-main">
             <div class="task-header">
               <h3 class="task-title">{{ task.title }}</h3>
-              <span class="priority-badge" :class="getPriorityClass(task.priority)">
-                {{ task.priority }}
-              </span>
             </div>
 
             <div class="task-meta">
@@ -456,29 +452,6 @@ const toggleTaskComplete = async (task) => {
   color: var(--text-primary);
 }
 
-.priority-badge {
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.priority-high {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.priority-medium {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.priority-low {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
 .task-meta {
   display: flex;
   align-items: center;
@@ -644,10 +617,7 @@ const toggleTaskComplete = async (task) => {
     gap: 0.75rem;
   }
 
-  .priority-badge {
-    padding: 0.15rem 0.5rem;
-    font-size: 0.65rem;
-  }
+  /* priority styles removed */
 
   .empty-illustration {
     width: 90px;
